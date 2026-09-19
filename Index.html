@@ -1,0 +1,1056 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Albion Online Node Crafting & Profit Calculator</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        albion: {
+                            bg: '#0B0D13',
+                            card: '#141824',
+                            'card-hover': '#1A2030',
+                            border: '#232A3D',
+                            gold: '#D4AF37',
+                            'gold-hover': '#F3C63A',
+                            accent: '#3B82F6',
+                            danger: '#EF4444',
+                            success: '#10B981',
+                            amber: '#F59E0B'
+                        }
+                    },
+                    keyframes: {
+                        fadeIn: { '0%': { opacity: '0', transform: 'translateY(8px)' }, '100%': { opacity: '1', transform: 'translateY(0)' } },
+                        pulseGlow: { '0%, 100%': { borderColor: 'rgba(212, 175, 55, 0.4)' }, '50%': { borderColor: 'rgba(212, 175, 55, 0.9)' } }
+                    },
+                    animation: {
+                        fadeIn: 'fadeIn 0.25s ease-out forwards',
+                        pulseGlow: 'pulseGlow 2s infinite'
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Font -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #0B0D13;
+            color: #E2E8F0;
+            user-select: none;
+        }
+        input, select, textarea {
+            user-select: text;
+        }
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #0B0D13;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #232A3D;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #3B82F6;
+        }
+
+        /* Drag and Drop visual feedback */
+        .dragging-card {
+            opacity: 0.6;
+            transform: scale(0.98);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
+            cursor: grabbing !important;
+        }
+
+        .drop-target-connect {
+            border-color: #3B82F6 !important;
+            background-color: rgba(59, 130, 246, 0.08) !important;
+            box-shadow: 0 0 15px rgba(59, 130, 246, 0.3);
+        }
+
+        .drop-target-reorder {
+            border-top: 3px solid #D4AF37 !important;
+        }
+
+        /* SVG Line Canvas Overlay */
+        #connector-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 10;
+        }
+
+        .connector-path {
+            stroke: #3B82F6;
+            stroke-width: 2.5;
+            fill: none;
+            stroke-dasharray: 6 3;
+            animation: dash 30s linear infinite;
+        }
+
+        @keyframes dash {
+            to { stroke-dashoffset: -1000; }
+        }
+    </style>
+</head>
+<body class="min-h-screen pb-20 relative">
+
+    <header class="border-b border-albion-border bg-albion-card/90 backdrop-blur sticky top-0 z-40">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+            <div class="flex items-center space-x-3">
+                <div class="p-2 bg-albion-gold/10 border border-albion-gold/30 rounded-lg text-albion-gold">
+                    <i data-lucide="network" class="w-6 h-6"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-lg text-white tracking-wide flex items-center gap-2">
+                        ALBION <span class="text-albion-gold">CHAIN</span> CALCULATOR
+                    </h1>
+                    <p class="text-xs text-slate-400">Drag to Connect Recipes • RRR & 100 Nutrition Optimizer</p>
+                </div>
+            </div>
+
+            <div class="flex items-center space-x-2 sm:space-x-3">
+                <button onclick="addNewRecipeBlock()" class="bg-albion-gold hover:bg-albion-gold-hover text-slate-950 font-semibold px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg text-sm flex items-center gap-1.5 transition shadow-lg shadow-albion-gold/10 active:scale-95">
+                    <i data-lucide="plus-circle" class="w-4 h-4"></i>
+                    <span class="hidden sm:inline">Add Recipe Node</span>
+                </button>
+                <button onclick="exportJSON()" title="Export JSON" class="p-2 bg-slate-800 hover:bg-slate-700 border border-albion-border text-slate-300 rounded-lg text-sm transition active:scale-95">
+                    <i data-lucide="download" class="w-4 h-4"></i>
+                </button>
+                <button onclick="importJSON()" title="Import JSON" class="p-2 bg-slate-800 hover:bg-slate-700 border border-albion-border text-slate-300 rounded-lg text-sm transition active:scale-95">
+                    <i data-lucide="upload" class="w-4 h-4"></i>
+                </button>
+                <button onclick="resetData()" title="Reset All" class="p-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 rounded-lg text-sm transition active:scale-95">
+                    <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6 relative">
+        <!-- SVG Container for visual connections -->
+        <svg id="connector-canvas"></svg>
+
+        <section class="grid grid-cols-2 md:grid-cols-5 gap-3 sm:gap-4 mb-8">
+            <!-- Total Costs -->
+            <div class="bg-albion-card border border-albion-border rounded-xl p-4 shadow-sm relative overflow-hidden">
+                <div class="text-xs font-medium text-slate-400 uppercase tracking-wider mb-1 flex items-center justify-between">
+                    Total Costs
+                    <i data-lucide="trending-down" class="w-4 h-4 text-red-400"></i>
+                </div>
+                <div id="summary-costs" class="text-lg sm:text-xl font-bold text-red-400">0 Silver</div>
+                <div class="text-[10px] text-slate-500 mt-0.5">Raw materials & station fees</div>
+            </div>
+
+            <!-- Gross Income -->
+            <div class="bg-albion-card border border-albion-border rounded-xl p-4 shadow-sm relative overflow-hidden">
+                <div class="text-xs font-medium text-slate-400 uppercase tracking-wider mb-1 flex items-center justify-between">
+                    Gross Revenue
+                    <i data-lucide="trending-up" class="w-4 h-4 text-emerald-400"></i>
+                </div>
+                <div id="summary-revenue" class="text-lg sm:text-xl font-bold text-emerald-400">0 Silver</div>
+                <div class="text-[10px] text-slate-500 mt-0.5">Output sales value</div>
+            </div>
+
+            <!-- Total Taxes -->
+            <div class="bg-albion-card border border-albion-border rounded-xl p-4 shadow-sm relative overflow-hidden">
+                <div class="text-xs font-medium text-slate-400 uppercase tracking-wider mb-1 flex items-center justify-between">
+                    Market Taxes
+                    <i data-lucide="receipt" class="w-4 h-4 text-amber-400"></i>
+                </div>
+                <div id="summary-taxes" class="text-lg sm:text-xl font-bold text-amber-400">0 Silver</div>
+                <div class="text-[10px] text-slate-500 mt-0.5">Total market fees</div>
+            </div>
+
+            <!-- Net Profit -->
+            <div class="bg-albion-card border border-albion-border rounded-xl p-4 shadow-sm col-span-2 md:col-span-1 relative overflow-hidden">
+                <div class="text-xs font-medium text-slate-400 uppercase tracking-wider mb-1 flex items-center justify-between">
+                    Net Clear Profit
+                    <i data-lucide="coins" class="w-4 h-4 text-albion-gold"></i>
+                </div>
+                <div id="summary-profit" class="text-lg sm:text-xl font-bold text-albion-gold">0 Silver</div>
+                <div class="text-[10px] text-slate-500 mt-0.5">Final net gain</div>
+            </div>
+
+            <!-- ROI -->
+            <div class="bg-albion-card border border-albion-border rounded-xl p-4 shadow-sm col-span-2 md:col-span-1 relative overflow-hidden">
+                <div class="text-xs font-medium text-slate-400 uppercase tracking-wider mb-1 flex items-center justify-between">
+                    Overall ROI
+                    <i data-lucide="percent" class="w-4 h-4 text-blue-400"></i>
+                </div>
+                <div id="summary-roi" class="text-lg sm:text-xl font-bold text-blue-400">0.0%</div>
+                <div class="text-[10px] text-slate-500 mt-0.5">Return on investment</div>
+            </div>
+        </section>
+
+        <div id="recipes-container" class="space-y-6 relative z-20">
+            <!-- Dynamic Recipe Blocks Rendered Here -->
+        </div>
+
+        <!-- Empty State Message -->
+        <div id="empty-state" class="hidden text-center py-16 border-2 border-dashed border-albion-border rounded-xl bg-albion-card/30">
+            <i data-lucide="package-open" class="w-12 h-12 text-slate-500 mx-auto mb-3"></i>
+            <h3 class="text-lg font-medium text-slate-300">No Calculation Recipe Nodes Added</h3>
+            <p class="text-sm text-slate-500 max-w-md mx-auto mb-4">Create your crafting chain by adding recipe nodes. Drag cards over each other to connect them!</p>
+            <button onclick="addNewRecipeBlock()" class="bg-albion-gold hover:bg-albion-gold-hover text-slate-950 font-semibold px-4 py-2 rounded-lg text-sm inline-flex items-center gap-2 transition active:scale-95">
+                <i data-lucide="plus-circle" class="w-4 h-4"></i> Create First Recipe Node
+            </button>
+        </div>
+    </main>
+
+    <!-- RRR Iteration Step Modal -->
+    <div id="rrr-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-albion-card border border-albion-border rounded-xl max-w-lg w-full p-6 shadow-2xl relative animate-fadeIn">
+            <button onclick="closeRRRModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+            
+            <div class="flex items-center gap-2 mb-4">
+                <div class="p-2 bg-blue-500/10 text-blue-400 rounded-lg">
+                    <i data-lucide="refresh-cw" class="w-5 h-5"></i>
+                </div>
+                <div>
+                    <h3 class="font-bold text-lg text-white">Resource Return Rate (RRR) Simulation</h3>
+                    <p class="text-xs text-slate-400">Recursive item generation breakdown</p>
+                </div>
+            </div>
+
+            <div class="space-y-3 mb-6">
+                <div class="flex justify-between text-sm py-1 border-b border-albion-border">
+                    <span class="text-slate-400">Base Starting Crafts:</span>
+                    <span id="modal-initial-qty" class="font-semibold text-white">0</span>
+                </div>
+                <div class="flex justify-between text-sm py-1 border-b border-albion-border">
+                    <span class="text-slate-400">Resource Return Rate (RRR %):</span>
+                    <span id="modal-rrr-rate" class="font-semibold text-blue-400">0%</span>
+                </div>
+                <div class="flex justify-between text-sm py-1 border-b border-albion-border">
+                    <span class="text-slate-400">Total Effective Output Items:</span>
+                    <span id="modal-total-effective" class="font-bold text-emerald-400">0</span>
+                </div>
+                <div class="flex justify-between text-sm py-1 border-b border-albion-border">
+                    <span class="text-slate-400">Bonus Returned Crafts:</span>
+                    <span id="modal-bonus-items" class="font-bold text-albion-gold">0</span>
+                </div>
+            </div>
+
+            <div class="text-xs font-semibold text-slate-400 uppercase mb-2">Infinite Loop Steps:</div>
+            <div id="modal-step-list" class="max-h-48 overflow-y-auto space-y-1.5 pr-2">
+                <!-- Iteration steps rendered dynamically -->
+            </div>
+
+            <div class="mt-6 flex justify-end">
+                <button onclick="closeRRRModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white text-sm font-medium rounded-lg">
+                    Close
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Hidden Input for JSON Import -->
+    <input type="file" id="json-import-input" accept=".json" class="hidden" onchange="handleJSONImport(event)">
+
+    <script>
+        // Data State
+        let recipeBlocks = [];
+
+        // Drag & Drop State
+        let draggedBlockId = null;
+        let currentDropTargetId = null;
+        let dropAction = null; // 'connect' or 'reorder'
+
+        // Presets
+        const RRR_PRESETS = [
+            { label: 'City + Focus (53.9%)', value: 53.9 },
+            { label: 'City No Focus (36.7%)', value: 36.7 },
+            { label: 'Off-City + Focus (43.5%)', value: 43.5 },
+            { label: 'Off-City No Focus (15.2%)', value: 15.2 },
+            { label: 'Hideout Max (59.0%)', value: 59.0 }
+        ];
+
+        const TAX_PRESETS = [
+            { label: 'Premium Market (6.5%)', value: 6.5 },
+            { label: 'Non-Premium Market (10.5%)', value: 10.5 },
+            { label: 'Setup Fee Only (2.5%)', value: 2.5 },
+            { label: 'Custom (0%)', value: 0 }
+        ];
+
+        function formatNumber(num) {
+            return new Intl.NumberFormat('en-US', { maximumFractionDigits: 1 }).format(num || 0);
+        }
+
+        window.onload = function() {
+            lucide.createIcons();
+            loadFromLocalStorage();
+            if (recipeBlocks.length === 0) {
+                initDefaultBlocks();
+            } else {
+                renderAllBlocks();
+            }
+
+            window.addEventListener('resize', drawConnectorLines);
+        };
+
+        function initDefaultBlocks() {
+            const rawLogId = 'block_' + Date.now() + '_1';
+            const plankId = 'block_' + Date.now() + '_2';
+
+            recipeBlocks = [
+                {
+                    id: rawLogId,
+                    parentId: null,
+                    title: "1. Raw Log Harvest / Buying",
+                    fields: [
+                        { id: 'f_1_1', type: 'standard', name: 'T6 Raw Logs', qty: 100, price: 350, isIncome: false }
+                    ]
+                },
+                {
+                    id: plankId,
+                    parentId: rawLogId,
+                    title: "2. T6 Plank Refining Station",
+                    fields: [
+                        { id: 'f_2_1', type: 'rrr', name: 'T6 Plank Crafting', qty: 100, rrr: 36.7, price: 350, unitCraftedValue: 780 },
+                        { id: 'f_2_2', type: 'station_fee', name: 'Refining Station Fee', feePer100Nutrition: 650, totalCrafts: 100, nutritionPerCraft: 8 },
+                        { id: 'f_2_3', type: 'tax', name: 'Market Sales Tax', rate: 6.5, applyToIncome: true }
+                    ]
+                }
+            ];
+            saveToLocalStorage();
+            renderAllBlocks();
+        }
+
+        function saveToLocalStorage() {
+            localStorage.setItem('albion_chain_data', JSON.stringify(recipeBlocks));
+            calculateOverallTotals();
+            drawConnectorLines();
+        }
+
+        function loadFromLocalStorage() {
+            const data = localStorage.getItem('albion_chain_data');
+            if (data) {
+                try {
+                    recipeBlocks = JSON.parse(data);
+                } catch (e) {
+                    recipeBlocks = [];
+                }
+            }
+        }
+
+        function addNewRecipeBlock(defaultTitle = "New Recipe Node") {
+            const newBlock = {
+                id: 'block_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
+                parentId: null,
+                title: defaultTitle,
+                fields: [
+                    { id: 'f_' + Date.now() + '_1', type: 'rrr', name: 'Crafted Item', qty: 50, rrr: 36.7, price: 500, unitCraftedValue: 1200 },
+                    { id: 'f_' + Date.now() + '_2', type: 'station_fee', name: 'Crafting Station Tax', feePer100Nutrition: 750, totalCrafts: 50, nutritionPerCraft: 16 },
+                    { id: 'f_' + Date.now() + '_3', type: 'tax', name: 'Market Tax', rate: 6.5, applyToIncome: true }
+                ]
+            };
+            recipeBlocks.push(newBlock);
+            saveToLocalStorage();
+            renderAllBlocks();
+        }
+
+        function removeRecipeBlock(blockId) {
+            // Unlink any children pointing to this block
+            recipeBlocks.forEach(b => {
+                if (b.parentId === blockId) b.parentId = null;
+            });
+            recipeBlocks = recipeBlocks.filter(b => b.id !== blockId);
+            saveToLocalStorage();
+            renderAllBlocks();
+        }
+
+        function disconnectBlock(blockId) {
+            const block = recipeBlocks.find(b => b.id === blockId);
+            if (block) {
+                block.parentId = null;
+                saveToLocalStorage();
+                renderAllBlocks();
+            }
+        }
+
+        function updateBlockTitle(blockId, newTitle) {
+            const block = recipeBlocks.find(b => b.id === blockId);
+            if (block) {
+                block.title = newTitle;
+                saveToLocalStorage();
+            }
+        }
+
+        function addFieldToBlock(blockId, type) {
+            const block = recipeBlocks.find(b => b.id === blockId);
+            if (!block) return;
+
+            let newField = { id: 'f_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4), type };
+
+            if (type === 'standard') {
+                newField = { ...newField, name: 'Raw Material / Sub-Component', qty: 100, price: 200, isIncome: false };
+            } else if (type === 'rrr') {
+                newField = { ...newField, name: 'Crafted Weapon / Armor', qty: 50, rrr: 36.7, price: 800, unitCraftedValue: 1800 };
+            } else if (type === 'station_fee') {
+                newField = { ...newField, name: 'Station Fee (per 100)', feePer100Nutrition: 600, totalCrafts: 50, nutritionPerCraft: 16 };
+            } else if (type === 'tax') {
+                newField = { ...newField, name: 'Market Tax', rate: 6.5, applyToIncome: true };
+            }
+
+            block.fields.push(newField);
+            saveToLocalStorage();
+            renderAllBlocks();
+        }
+
+        function removeField(blockId, fieldId) {
+            const block = recipeBlocks.find(b => b.id === blockId);
+            if (!block) return;
+
+            block.fields = block.fields.filter(f => f.id !== fieldId);
+            saveToLocalStorage();
+            renderAllBlocks();
+        }
+
+        function updateFieldData(blockId, fieldId, key, value) {
+            const block = recipeBlocks.find(b => b.id === blockId);
+            if (!block) return;
+
+            const field = block.fields.find(f => f.id === fieldId);
+            if (field) {
+                field[key] = value;
+                saveToLocalStorage();
+                renderAllBlocks();
+            }
+        }
+
+        function calculateRRR(baseQty, rrrPercent) {
+            const rate = (rrrPercent || 0) / 100;
+            if (rate >= 1 || rate < 0) return { totalQty: baseQty, bonusQty: 0, steps: [] };
+            
+            // Formula for recursive infinite return sum: Total Output = Base / (1 - RRR)
+            const totalQty = baseQty / (1 - rate);
+            const bonusQty = totalQty - baseQty;
+
+            const steps = [];
+            let currentCraft = baseQty;
+            let stepNum = 1;
+
+            while (currentCraft >= 0.1 && stepNum <= 20) {
+                let returned = currentCraft * rate;
+                steps.push({ step: stepNum, input: currentCraft, returned: returned });
+                currentCraft = returned;
+                stepNum++;
+            }
+
+            return { totalQty, bonusQty, steps };
+        }
+
+        function calculateBlockTotals(block) {
+            let totalCost = 0;
+            let totalGrossIncome = 0;
+            let totalTaxes = 0;
+
+            block.fields.forEach(field => {
+                if (field.type === 'standard') {
+                    const subtotal = (field.qty || 0) * (field.price || 0);
+                    if (field.isIncome) {
+                        totalGrossIncome += subtotal;
+                    } else {
+                        totalCost += subtotal;
+                    }
+                } else if (field.type === 'rrr') {
+                    const rrrResult = calculateRRR(field.qty || 0, field.rrr || 0);
+                    const rawMaterialCost = (field.qty || 0) * (field.price || 0);
+                    const grossValueGained = rrrResult.totalQty * (field.unitCraftedValue || 0);
+
+                    totalCost += rawMaterialCost;
+                    totalGrossIncome += grossValueGained;
+                } else if (field.type === 'station_fee') {
+                    // Albion Station Fee Formula: (Fee per 100 Nutrition) * (Nutrition per Craft / 100) * Total Crafts
+                    const totalNutrition = (field.nutritionPerCraft || 0) * (field.totalCrafts || 0);
+                    const calculatedFee = (field.feePer100Nutrition || 0) * (totalNutrition / 100);
+                    totalCost += calculatedFee;
+                }
+            });
+
+            block.fields.forEach(field => {
+                if (field.type === 'tax') {
+                    const rate = (field.rate || 0) / 100;
+                    const taxAmount = field.applyToIncome ? (totalGrossIncome * rate) : (totalCost * rate);
+                    totalTaxes += taxAmount;
+                }
+            });
+
+            const netProfit = totalGrossIncome - totalCost - totalTaxes;
+            const roi = totalCost > 0 ? (netProfit / totalCost) * 100 : 0;
+
+            return { totalCost, totalGrossIncome, totalTaxes, netProfit, roi };
+        }
+
+        function calculateOverallTotals() {
+            let grandCost = 0;
+            let grandRevenue = 0;
+            let grandTaxes = 0;
+
+            recipeBlocks.forEach(block => {
+                const totals = calculateBlockTotals(block);
+                grandCost += totals.totalCost;
+                grandRevenue += totals.totalGrossIncome;
+                grandTaxes += totals.totalTaxes;
+            });
+
+            const grandProfit = grandRevenue - grandCost - grandTaxes;
+            const grandROI = grandCost > 0 ? (grandProfit / grandCost) * 100 : 0;
+
+            document.getElementById('summary-costs').innerText = `${formatNumber(grandCost)} Silver`;
+            document.getElementById('summary-revenue').innerText = `${formatNumber(grandRevenue)} Silver`;
+            document.getElementById('summary-taxes').innerText = `${formatNumber(grandTaxes)} Silver`;
+            
+            const profitElem = document.getElementById('summary-profit');
+            profitElem.innerText = `${formatNumber(grandProfit)} Silver`;
+            profitElem.className = `text-lg sm:text-xl font-bold ${grandProfit >= 0 ? 'text-emerald-400' : 'text-red-400'}`;
+
+            document.getElementById('summary-roi').innerText = `${grandROI.toFixed(1)}%`;
+        }
+
+        function handleDragStart(e, blockId) {
+            draggedBlockId = blockId;
+            e.target.classList.add('dragging-card');
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', blockId);
+        }
+
+        function handleDragEnd(e) {
+            e.target.classList.remove('dragging-card');
+            clearDropHighlights();
+            draggedBlockId = null;
+            currentDropTargetId = null;
+            dropAction = null;
+        }
+
+        function handleDragOver(e, targetBlockId) {
+            e.preventDefault();
+            if (draggedBlockId === targetBlockId) return;
+
+            const targetCard = document.getElementById(`card-${targetBlockId}`);
+            if (!targetCard) return;
+
+            const rect = targetCard.getBoundingClientRect();
+            const offsetY = e.clientY - rect.top;
+
+            clearDropHighlights();
+
+            // If dropped near top third -> Reorder; If dropped in middle/bottom -> Connect as Child
+            if (offsetY < rect.height * 0.3) {
+                targetCard.classList.add('drop-target-reorder');
+                currentDropTargetId = targetBlockId;
+                dropAction = 'reorder';
+            } else {
+                targetCard.classList.add('drop-target-connect');
+                currentDropTargetId = targetBlockId;
+                dropAction = 'connect';
+            }
+        }
+
+        function handleDragLeave(e, targetBlockId) {
+            const targetCard = document.getElementById(`card-${targetBlockId}`);
+            if (targetCard) {
+                targetCard.classList.remove('drop-target-connect', 'drop-target-reorder');
+            }
+        }
+
+        function handleDrop(e, targetBlockId) {
+            e.preventDefault();
+            clearDropHighlights();
+
+            if (!draggedBlockId || draggedBlockId === targetBlockId) return;
+
+            if (dropAction === 'connect') {
+                // Prevent circular connection loops
+                if (!isAncestor(draggedBlockId, targetBlockId)) {
+                    const block = recipeBlocks.find(b => b.id === draggedBlockId);
+                    if (block) {
+                        block.parentId = targetBlockId;
+                    }
+                } else {
+                    alert("Cannot connect to a child node to prevent circular loops!");
+                }
+            } else if (dropAction === 'reorder') {
+                const draggedIdx = recipeBlocks.findIndex(b => b.id === draggedBlockId);
+                const targetIdx = recipeBlocks.findIndex(b => b.id === targetBlockId);
+
+                if (draggedIdx !== -1 && targetIdx !== -1) {
+                    const [moved] = recipeBlocks.splice(draggedIdx, 1);
+                    recipeBlocks.splice(targetIdx, 0, moved);
+                }
+            }
+
+            saveToLocalStorage();
+            renderAllBlocks();
+        }
+
+        function isAncestor(ancestorId, childId) {
+            let current = recipeBlocks.find(b => b.id === childId);
+            while (current && current.parentId) {
+                if (current.parentId === ancestorId) return true;
+                current = recipeBlocks.find(b => b.id === current.parentId);
+            }
+            return false;
+        }
+
+        function clearDropHighlights() {
+            document.querySelectorAll('.drop-target-connect, .drop-target-reorder').forEach(el => {
+                el.classList.remove('drop-target-connect', 'drop-target-reorder');
+            });
+        }
+
+        function drawConnectorLines() {
+            const svg = document.getElementById('connector-canvas');
+            const container = document.getElementById('recipes-container');
+            if (!svg || !container) return;
+
+            const containerRect = container.getBoundingClientRect();
+            svg.setAttribute('width', containerRect.width);
+            svg.setAttribute('height', containerRect.height);
+            svg.style.top = `${container.offsetTop}px`;
+            svg.style.left = `${container.offsetLeft}px`;
+
+            svg.innerHTML = '';
+
+            recipeBlocks.forEach(block => {
+                if (block.parentId) {
+                    const parentCard = document.getElementById(`card-${block.parentId}`);
+                    const childCard = document.getElementById(`card-${block.id}`);
+
+                    if (parentCard && childCard) {
+                        const parentRect = parentCard.getBoundingClientRect();
+                        const childRect = childCard.getBoundingClientRect();
+
+                        const startX = parentRect.left - containerRect.left + 24;
+                        const startY = parentRect.bottom - containerRect.top;
+                        const endX = childRect.left - containerRect.left + 24;
+                        const endY = childRect.top - containerRect.top;
+
+                        const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                        const controlY1 = startY + (endY - startY) / 2;
+                        const controlY2 = startY + (endY - startY) / 2;
+
+                        const d = `M ${startX} ${startY} C ${startX} ${controlY1}, ${endX} ${controlY2}, ${endX} ${endY}`;
+                        path.setAttribute('d', d);
+                        path.setAttribute('class', 'connector-path');
+                        svg.appendChild(path);
+                    }
+                }
+            });
+        }
+
+        function renderAllBlocks() {
+            const container = document.getElementById('recipes-container');
+            const emptyState = document.getElementById('empty-state');
+
+            if (recipeBlocks.length === 0) {
+                container.innerHTML = '';
+                emptyState.classList.remove('hidden');
+                calculateOverallTotals();
+                drawConnectorLines();
+                return;
+            }
+
+            emptyState.classList.add('hidden');
+            container.innerHTML = recipeBlocks.map(block => renderBlockHTML(block)).join('');
+            lucide.createIcons();
+            calculateOverallTotals();
+            setTimeout(drawConnectorLines, 50);
+        }
+
+        function renderBlockHTML(block) {
+            const totals = calculateBlockTotals(block);
+            const parentBlock = block.parentId ? recipeBlocks.find(b => b.id === block.parentId) : null;
+
+            return `
+            <div id="card-${block.id}" 
+                draggable="true"
+                ondragstart="handleDragStart(event, '${block.id}')"
+                ondragend="handleDragEnd(event)"
+                ondragover="handleDragOver(event, '${block.id}')"
+                ondragleave="handleDragLeave(event, '${block.id}')"
+                ondrop="handleDrop(event, '${block.id}')"
+                class="bg-albion-card border border-albion-border rounded-xl shadow-lg transition-all duration-200 animate-fadeIn relative overflow-hidden group">
+                
+                <!-- Block Header -->
+                <div class="bg-slate-900/80 p-4 border-b border-albion-border flex flex-wrap items-center justify-between gap-3">
+                    <div class="flex items-center gap-3 flex-1 min-w-[220px]">
+                        <!-- Drag Grip Handle -->
+                        <div class="cursor-grab active:cursor-grabbing text-slate-500 hover:text-albion-gold p-1 transition" title="Drag up/down to reorder, or drag onto another card to connect">
+                            <i data-lucide="grip-vertical" class="w-5 h-5"></i>
+                        </div>
+
+                        <div class="flex items-center gap-2 flex-1">
+                            <input type="text" value="${escapeHtml(block.title)}" 
+                                onchange="updateBlockTitle('${block.id}', this.value)"
+                                class="bg-transparent border border-transparent hover:border-albion-border focus:border-albion-gold rounded px-2 py-1 font-bold text-base sm:text-lg text-white w-full max-w-md focus:outline-none focus:bg-slate-800/80 transition" 
+                                placeholder="Recipe Step Name...">
+
+                            ${parentBlock ? `
+                                <span class="inline-flex items-center gap-1 text-[11px] bg-blue-500/10 text-blue-400 border border-blue-500/30 px-2 py-0.5 rounded-full">
+                                    <i data-lucide="link" class="w-3 h-3"></i> Linked to: ${escapeHtml(parentBlock.title)}
+                                    <button onclick="disconnectBlock('${block.id}')" title="Disconnect Step" class="hover:text-red-400 ml-1">
+                                        <i data-lucide="unlink" class="w-3 h-3"></i>
+                                    </button>
+                                </span>
+                            ` : ''}
+                        </div>
+                    </div>
+
+                    <!-- Card Metrics -->
+                    <div class="flex items-center gap-4 text-sm">
+                        <div class="text-right">
+                            <span class="text-xs text-slate-400 block">Net Gain</span>
+                            <span class="font-bold ${totals.netProfit >= 0 ? 'text-emerald-400' : 'text-red-400'}">
+                                ${formatNumber(totals.netProfit)} Silver
+                            </span>
+                        </div>
+                        <div class="text-right border-l border-albion-border pl-4">
+                            <span class="text-xs text-slate-400 block">ROI</span>
+                            <span class="font-bold text-blue-400">${totals.roi.toFixed(1)}%</span>
+                        </div>
+                        <button onclick="removeRecipeBlock('${block.id}')" title="Delete Card" class="p-2 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition ml-2">
+                            <i data-lucide="trash-2" class="w-4 h-4"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Fields List -->
+                <div class="p-4 sm:p-5 space-y-3">
+                    ${block.fields.map(field => renderFieldRowHTML(block.id, field)).join('')}
+
+                    <!-- Action Bar for adding fields -->
+                    <div class="pt-3 border-t border-albion-border/60 flex flex-wrap gap-2 items-center justify-between">
+                        <div class="flex flex-wrap gap-2">
+                            <button onclick="addFieldToBlock('${block.id}', 'rrr')" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-albion-border rounded-lg text-xs font-medium flex items-center gap-1.5 transition active:scale-95">
+                                <i data-lucide="refresh-cw" class="w-3.5 h-3.5 text-blue-400"></i> RRR Output Item
+                            </button>
+                            <button onclick="addFieldToBlock('${block.id}', 'station_fee')" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-albion-border rounded-lg text-xs font-medium flex items-center gap-1.5 transition active:scale-95">
+                                <i data-lucide="calculator" class="w-3.5 h-3.5 text-albion-gold"></i> Station Fee (100 Nutrition)
+                            </button>
+                            <button onclick="addFieldToBlock('${block.id}', 'standard')" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-albion-border rounded-lg text-xs font-medium flex items-center gap-1.5 transition active:scale-95">
+                                <i data-lucide="plus" class="w-3.5 h-3.5 text-emerald-400"></i> Flat Ingredient / Expense
+                            </button>
+                            <button onclick="addFieldToBlock('${block.id}', 'tax')" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-albion-border rounded-lg text-xs font-medium flex items-center gap-1.5 transition active:scale-95">
+                                <i data-lucide="percent" class="w-3.5 h-3.5 text-amber-400"></i> Market Tax
+                            </button>
+                        </div>
+
+                        <div class="text-xs text-slate-400">
+                            Costs: <span class="text-slate-200 font-medium">${formatNumber(totals.totalCost)}</span> | 
+                            Revenue: <span class="text-emerald-400 font-medium">${formatNumber(totals.totalGrossIncome)}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            `;
+        }
+
+        function renderFieldRowHTML(blockId, field) {
+            if (field.type === 'rrr') {
+                const rrrData = calculateRRR(field.qty || 0, field.rrr || 0);
+                const grossValueGained = rrrData.totalQty * (field.unitCraftedValue || 0);
+                const rawCost = (field.qty || 0) * (field.price || 0);
+                const netGainedPerCraft = rrrData.totalQty > 0 ? (grossValueGained - rawCost) / rrrData.totalQty : 0;
+
+                return `
+                <div class="bg-slate-900/50 p-3 rounded-lg border border-blue-500/30 flex flex-wrap items-center gap-2.5 sm:gap-3">
+                    <div class="p-1.5 bg-blue-500/10 text-blue-400 rounded">
+                        <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+                    </div>
+
+                    <!-- Item Name -->
+                    <input type="text" value="${escapeHtml(field.name)}" 
+                        onchange="updateFieldData('${blockId}', '${field.id}', 'name', this.value)"
+                        class="bg-slate-800 border border-albion-border rounded px-2 py-1 text-xs text-slate-200 flex-1 min-w-[130px] focus:outline-none focus:border-blue-400" placeholder="Crafted Item Name">
+
+                    <!-- Initial Craft Quantity -->
+                    <div class="flex items-center gap-1">
+                        <span class="text-[10px] text-slate-400 uppercase">Input Qty</span>
+                        <input type="number" value="${field.qty}" min="0"
+                            onchange="updateFieldData('${blockId}', '${field.id}', 'qty', parseFloat(this.value) || 0)"
+                            class="bg-slate-800 border border-albion-border rounded px-2 py-1 text-xs text-slate-200 w-16 focus:outline-none focus:border-blue-400">
+                    </div>
+
+                    <!-- RRR % -->
+                    <div class="flex items-center gap-1">
+                        <span class="text-[10px] text-slate-400 uppercase">RRR %</span>
+                        <input type="number" value="${field.rrr}" step="0.1" min="0" max="99"
+                            onchange="updateFieldData('${blockId}', '${field.id}', 'rrr', parseFloat(this.value) || 0)"
+                            class="bg-slate-800 border border-albion-border rounded px-2 py-1 text-xs text-blue-400 font-semibold w-16 focus:outline-none focus:border-blue-400">
+                        
+                        <select onchange="updateFieldData('${blockId}', '${field.id}', 'rrr', parseFloat(this.value))" 
+                            class="bg-slate-800 border border-albion-border text-[11px] rounded px-1.5 py-1 text-slate-300 focus:outline-none">
+                            <option value="" disabled selected>Preset...</option>
+                            ${RRR_PRESETS.map(p => `<option value="${p.value}">${p.label}</option>`).join('')}
+                        </select>
+                    </div>
+
+                    <!-- Raw Ingredient Unit Cost -->
+                    <div class="flex items-center gap-1">
+                        <span class="text-[10px] text-slate-400 uppercase">Mat. Cost</span>
+                        <input type="number" value="${field.price}" min="0"
+                            onchange="updateFieldData('${blockId}', '${field.id}', 'price', parseFloat(this.value) || 0)"
+                            class="bg-slate-800 border border-albion-border rounded px-2 py-1 text-xs text-slate-200 w-20 focus:outline-none focus:border-blue-400">
+                    </div>
+
+                    <!-- 1 Crafted Item Market Value -->
+                    <div class="flex items-center gap-1">
+                        <span class="text-[10px] text-albion-gold uppercase font-semibold">1 Unit Sell</span>
+                        <input type="number" value="${field.unitCraftedValue}" min="0"
+                            onchange="updateFieldData('${blockId}', '${field.id}', 'unitCraftedValue', parseFloat(this.value) || 0)"
+                            class="bg-slate-800 border border-albion-gold/40 rounded px-2 py-1 text-xs text-albion-gold font-semibold w-20 focus:outline-none focus:border-albion-gold">
+                    </div>
+
+                    <!-- Computed Yield Badge -->
+                    <button onclick="openRRRModal(${field.qty || 0}, ${field.rrr || 0})" class="bg-blue-950/60 border border-blue-500/40 hover:border-blue-400 px-2.5 py-1 rounded text-xs flex items-center gap-1.5 text-blue-300 transition">
+                        <span>Total Output: <strong>${formatNumber(rrrData.totalQty)}</strong></span>
+                        <i data-lucide="info" class="w-3 h-3 text-blue-400"></i>
+                    </button>
+
+                    <!-- Calculated Total Gained -->
+                    <div class="min-w-[110px] text-right font-medium text-xs">
+                        <div class="text-emerald-400">+${formatNumber(grossValueGained)} Silver</div>
+                        <div class="text-[10px] text-slate-400">Gained/Unit: ${formatNumber(netGainedPerCraft)}</div>
+                    </div>
+
+                    <button onclick="removeField('${blockId}', '${field.id}')" class="text-slate-500 hover:text-red-400 p-1">
+                        <i data-lucide="x" class="w-4 h-4"></i>
+                    </button>
+                </div>
+                `;
+            }
+
+            if (field.type === 'station_fee') {
+                const totalNutrition = (field.nutritionPerCraft || 0) * (field.totalCrafts || 0);
+                const calculatedFee = (field.feePer100Nutrition || 0) * (totalNutrition / 100);
+
+                return `
+                <div class="bg-slate-900/50 p-3 rounded-lg border border-albion-gold/30 flex flex-wrap items-center gap-2.5 sm:gap-3">
+                    <div class="p-1.5 bg-albion-gold/10 text-albion-gold rounded">
+                        <i data-lucide="calculator" class="w-4 h-4"></i>
+                    </div>
+
+                    <!-- Label -->
+                    <input type="text" value="${escapeHtml(field.name)}" 
+                        onchange="updateFieldData('${blockId}', '${field.id}', 'name', this.value)"
+                        class="bg-slate-800 border border-albion-border rounded px-2 py-1 text-xs text-slate-200 flex-1 min-w-[130px] focus:outline-none focus:border-albion-gold" placeholder="Station Tax Name">
+
+                    <!-- Fee per 100 Nutrition -->
+                    <div class="flex items-center gap-1">
+                        <span class="text-[10px] text-slate-400 uppercase">Fee / 100 Nut.</span>
+                        <input type="number" value="${field.feePer100Nutrition}" min="0"
+                            onchange="updateFieldData('${blockId}', '${field.id}', 'feePer100Nutrition', parseFloat(this.value) || 0)"
+                            class="bg-slate-800 border border-albion-border rounded px-2 py-1 text-xs text-albion-gold font-semibold w-20 focus:outline-none focus:border-albion-gold">
+                    </div>
+
+                    <!-- Total Crafts -->
+                    <div class="flex items-center gap-1">
+                        <span class="text-[10px] text-slate-400 uppercase">Craft Count</span>
+                        <input type="number" value="${field.totalCrafts}" min="0"
+                            onchange="updateFieldData('${blockId}', '${field.id}', 'totalCrafts', parseFloat(this.value) || 0)"
+                            class="bg-slate-800 border border-albion-border rounded px-2 py-1 text-xs text-slate-200 w-16 focus:outline-none focus:border-albion-gold">
+                    </div>
+
+                    <!-- Nutrition / Craft -->
+                    <div class="flex items-center gap-1">
+                        <span class="text-[10px] text-slate-400 uppercase">Nut / Craft</span>
+                        <input type="number" value="${field.nutritionPerCraft}" min="0"
+                            onchange="updateFieldData('${blockId}', '${field.id}', 'nutritionPerCraft', parseFloat(this.value) || 0)"
+                            class="bg-slate-800 border border-albion-border rounded px-2 py-1 text-xs text-slate-200 w-16 focus:outline-none focus:border-albion-gold">
+                    </div>
+
+                    <!-- Calculated Fee -->
+                    <div class="min-w-[100px] text-right font-medium text-xs text-red-400">
+                        -${formatNumber(calculatedFee)} Silver
+                    </div>
+
+                    <button onclick="removeField('${blockId}', '${field.id}')" class="text-slate-500 hover:text-red-400 p-1">
+                        <i data-lucide="x" class="w-4 h-4"></i>
+                    </button>
+                </div>
+                `;
+            }
+
+            if (field.type === 'standard') {
+                const subtotal = (field.qty || 0) * (field.price || 0);
+                return `
+                <div class="bg-slate-900/50 p-3 rounded-lg border border-albion-border/50 flex flex-wrap items-center gap-2.5 sm:gap-3">
+                    <div class="p-1.5 bg-slate-800 text-slate-400 rounded">
+                        <i data-lucide="${field.isIncome ? 'arrow-down-left' : 'arrow-up-right'}" class="w-4 h-4 ${field.isIncome ? 'text-emerald-400' : 'text-red-400'}"></i>
+                    </div>
+
+                    <input type="text" value="${escapeHtml(field.name)}" 
+                        onchange="updateFieldData('${blockId}', '${field.id}', 'name', this.value)"
+                        class="bg-slate-800 border border-albion-border rounded px-2 py-1 text-xs text-slate-200 flex-1 min-w-[130px] focus:outline-none focus:border-slate-400" placeholder="Ingredient Name">
+
+                    <select onchange="updateFieldData('${blockId}', '${field.id}', 'isIncome', this.value === 'true')" 
+                        class="bg-slate-800 border border-albion-border text-xs rounded px-2 py-1 text-slate-300 focus:outline-none">
+                        <option value="false" ${!field.isIncome ? 'selected' : ''}>Expense (Cost)</option>
+                        <option value="true" ${field.isIncome ? 'selected' : ''}>Income (Revenue)</option>
+                    </select>
+
+                    <div class="flex items-center gap-1">
+                        <span class="text-[10px] text-slate-400 uppercase">Qty</span>
+                        <input type="number" value="${field.qty}" min="0"
+                            onchange="updateFieldData('${blockId}', '${field.id}', 'qty', parseFloat(this.value) || 0)"
+                            class="bg-slate-800 border border-albion-border rounded px-2 py-1 text-xs text-slate-200 w-16 focus:outline-none focus:border-slate-400">
+                    </div>
+
+                    <div class="flex items-center gap-1">
+                        <span class="text-[10px] text-slate-400 uppercase">Price/Unit</span>
+                        <input type="number" value="${field.price}" min="0"
+                            onchange="updateFieldData('${blockId}', '${field.id}', 'price', parseFloat(this.value) || 0)"
+                            class="bg-slate-800 border border-albion-border rounded px-2 py-1 text-xs text-slate-200 w-20 focus:outline-none focus:border-slate-400">
+                    </div>
+
+                    <div class="min-w-[90px] text-right font-medium text-xs ${field.isIncome ? 'text-emerald-400' : 'text-slate-300'}">
+                        ${field.isIncome ? '+' : '-'}${formatNumber(subtotal)}
+                    </div>
+
+                    <button onclick="removeField('${blockId}', '${field.id}')" class="text-slate-500 hover:text-red-400 p-1">
+                        <i data-lucide="x" class="w-4 h-4"></i>
+                    </button>
+                </div>
+                `;
+            }
+
+            if (field.type === 'tax') {
+                const totals = calculateBlockTotals(recipeBlocks.find(b => b.id === blockId));
+                const rate = (field.rate || 0) / 100;
+                const taxAmount = field.applyToIncome ? (totals.totalGrossIncome * rate) : (totals.totalCost * rate);
+
+                return `
+                <div class="bg-slate-900/50 p-3 rounded-lg border border-amber-500/30 flex flex-wrap items-center gap-2.5 sm:gap-3">
+                    <div class="p-1.5 bg-amber-500/10 text-amber-400 rounded">
+                        <i data-lucide="percent" class="w-4 h-4"></i>
+                    </div>
+
+                    <input type="text" value="${escapeHtml(field.name)}" 
+                        onchange="updateFieldData('${blockId}', '${field.id}', 'name', this.value)"
+                        class="bg-slate-800 border border-albion-border rounded px-2 py-1 text-xs text-slate-200 flex-1 min-w-[130px] focus:outline-none focus:border-amber-400" placeholder="Market Tax Name">
+
+                    <div class="flex items-center gap-1">
+                        <span class="text-[10px] text-slate-400 uppercase">Rate %</span>
+                        <input type="number" value="${field.rate}" step="0.1" min="0" max="100"
+                            onchange="updateFieldData('${blockId}', '${field.id}', 'rate', parseFloat(this.value) || 0)"
+                            class="bg-slate-800 border border-albion-border rounded px-2 py-1 text-xs text-amber-400 font-semibold w-16 focus:outline-none focus:border-amber-400">
+                    </div>
+
+                    <select onchange="updateFieldData('${blockId}', '${field.id}', 'rate', parseFloat(this.value))" 
+                        class="bg-slate-800 border border-albion-border text-[11px] rounded px-1.5 py-1 text-slate-300 focus:outline-none">
+                        <option value="" disabled selected>Tax Preset...</option>
+                        ${TAX_PRESETS.map(p => `<option value="${p.value}">${p.label}</option>`).join('')}
+                    </select>
+
+                    <select onchange="updateFieldData('${blockId}', '${field.id}', 'applyToIncome', this.value === 'true')" 
+                        class="bg-slate-800 border border-albion-border text-xs rounded px-2 py-1 text-slate-300 focus:outline-none">
+                        <option value="true" ${field.applyToIncome ? 'selected' : ''}>Apply to Gross Revenue</option>
+                        <option value="false" ${!field.applyToIncome ? 'selected' : ''}>Apply to Total Expenses</option>
+                    </select>
+
+                    <div class="min-w-[90px] text-right font-medium text-xs text-amber-400">
+                        -${formatNumber(taxAmount)} Silver
+                    </div>
+
+                    <button onclick="removeField('${blockId}', '${field.id}')" class="text-slate-500 hover:text-red-400 p-1">
+                        <i data-lucide="x" class="w-4 h-4"></i>
+                    </button>
+                </div>
+                `;
+            }
+
+            return '';
+        }
+
+        function openRRRModal(qty, rrr) {
+            const data = calculateRRR(qty, rrr);
+
+            document.getElementById('modal-initial-qty').innerText = formatNumber(qty);
+            document.getElementById('modal-rrr-rate').innerText = `${rrr}%`;
+            document.getElementById('modal-total-effective').innerText = formatNumber(data.totalQty);
+            document.getElementById('modal-bonus-items').innerText = `+${formatNumber(data.bonusQty)}`;
+
+            const listContainer = document.getElementById('modal-step-list');
+            listContainer.innerHTML = data.steps.map(s => `
+                <div class="flex justify-between items-center text-xs p-2 rounded bg-slate-900 border border-albion-border/40">
+                    <span class="text-slate-400">Iter ${s.step}: Crafting ${formatNumber(s.input)}</span>
+                    <span class="text-emerald-400 font-medium">+${formatNumber(s.returned)} returned</span>
+                </div>
+            `).join('');
+
+            document.getElementById('rrr-modal').classList.remove('hidden');
+        }
+
+        function closeRRRModal() {
+            document.getElementById('rrr-modal').classList.add('hidden');
+        }
+
+        function exportJSON() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(recipeBlocks, null, 2));
+            const downloadAnchor = document.createElement('a');
+            downloadAnchor.setAttribute("href", dataStr);
+            downloadAnchor.setAttribute("download", `albion_crafting_chain_${new Date().toISOString().slice(0,10)}.json`);
+            document.body.appendChild(downloadAnchor);
+            downloadAnchor.click();
+            downloadAnchor.remove();
+        }
+
+        function importJSON() {
+            document.getElementById('json-import-input').click();
+        }
+
+        function handleJSONImport(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const importedData = JSON.parse(e.target.result);
+                    if (Array.isArray(importedData)) {
+                        recipeBlocks = importedData;
+                        saveToLocalStorage();
+                        renderAllBlocks();
+                    } else {
+                        alert("Invalid file structure. Must be an array of recipe blocks.");
+                    }
+                } catch (err) {
+                    alert("Error parsing uploaded JSON file.");
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        function resetData() {
+            if (confirm("Reset all recipe cards and connections?")) {
+                recipeBlocks = [];
+                saveToLocalStorage();
+                renderAllBlocks();
+            }
+        }
+
+        function escapeHtml(str) {
+            return (str || '').replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+        }
+    </script>
+</body>
+</html>
