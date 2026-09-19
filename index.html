@@ -47,11 +47,12 @@
         body {
             font-family: 'Inter', sans-serif;
             user-select: none;
+            touch-action: none;
         }
         body.dark { background-color: #0B0D13; color: #E2E8F0; }
         body.light { background-color: #F8FAFC; color: #1E293B; }
 
-        input, select, textarea { user-select: text; font-size: 16px !important; }
+        input, select, textarea { user-select: text; font-size: 16px !important; touch-action: auto; }
         @media (min-width: 640px) {
             input, select, textarea { font-size: 0.875rem !important; }
         }
@@ -63,42 +64,41 @@
         body.light ::-webkit-scrollbar-thumb { background: #CBD5E1; }
 
         .recipe-card {
-            transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1), box-shadow 0.22s ease, border-color 0.2s ease;
+            transition: box-shadow 0.22s ease, border-color 0.2s ease;
         }
-        .field-row {
-            transition: transform 0.18s ease, background-color 0.18s ease, border-color 0.18s ease;
-        }
-
-        /* Drag and Drop visual feedback - Card level */
-        .dragging-card {
-            opacity: 0.35;
-            transform: scale(0.97);
+        
+        /* Floating active dragged ghost element */
+        .floating-ghost {
+            position: fixed;
+            pointer-events: none;
+            z-index: 10000;
+            opacity: 0.92;
+            transform: scale(1.02) rotate(1deg);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+            border: 2px solid #D4AF37 !important;
+            backdrop-filter: blur(8px);
         }
 
         .drop-target-connect {
             border-color: #3B82F6 !important;
             background-color: rgba(59, 130, 246, 0.08) !important;
-            transform: scale(1.01);
         }
 
         .drop-target-reorder {
             border-top: 3px solid #D4AF37 !important;
-            transform: translateY(2px);
         }
 
-        /* Drag and Drop visual feedback - Field level */
-        .dragging-field {
-            opacity: 0.35;
-            transform: scale(0.96);
-        }
-
-        .drop-target-field {
+        .drop-target-field-top {
             border-top: 3px solid #D4AF37 !important;
             background-color: rgba(212, 175, 55, 0.08) !important;
-            transform: translateY(2px);
         }
 
-        .field-grip { cursor: grab; }
+        .drop-target-field-bottom {
+            border-bottom: 3px solid #D4AF37 !important;
+            background-color: rgba(212, 175, 55, 0.08) !important;
+        }
+
+        .field-grip { cursor: grab; touch-action: none; }
         .field-grip:active { cursor: grabbing; }
 
         #connector-canvas {
@@ -122,7 +122,7 @@
             to { stroke-dashoffset: -1000; }
         }
 
-        button { transition: transform 0.12s ease, background-color 0.15s ease; }
+        button { transition: transform 0.12s ease, background-color 0.15s ease; touch-action: manipulation; }
         button:active { transform: scale(0.94); }
     </style>
 </head>
@@ -328,30 +328,11 @@
         let workspaceTabs = [];
         let activeTabId = null;
         let searchQuery = '';
-        const STORAGE_KEY = 'albion_chain_multitab_data_v5';
+        const STORAGE_KEY = 'albion_chain_multitab_data_v6';
         const THEME_STORAGE_KEY = 'albion_chain_theme';
 
-        let draggedBlockId = null;
-        let currentDropTargetId = null;
-        let dropAction = null; 
-
-        let draggedFieldBlockId = null;
-        let draggedFieldId = null;
-
-        const RRR_PRESETS = [
-            { label: 'City + Focus (53.9%)', value: 53.9 },
-            { label: 'City No Focus (36.7%)', value: 36.7 },
-            { label: 'Off-City + Focus (43.5%)', value: 43.5 },
-            { label: 'Off-City No Focus (15.2%)', value: 15.2 },
-            { label: 'Hideout Max (59.0%)', value: 59.0 }
-        ];
-
-        const TAX_PRESETS = [
-            { label: 'Premium Market (6.5%)', value: 6.5 },
-            { label: 'Non-Premium Market (10.5%)', value: 10.5 },
-            { label: 'Setup Fee Only (2.5%)', value: 2.5 },
-            { label: 'Custom (0%)', value: 0 }
-        ];
+        // Pointer Drag Engine State
+        let dragSession = null; // { type: 'card'|'field', blockId, fieldId, element, ghost, startX, startY, offsetX, offsetY }
 
         const DEFAULT_TAX_RATE = 10.5;
 
@@ -392,9 +373,11 @@
 
             window.addEventListener('resize', drawConnectorLines);
             window.addEventListener('beforeunload', persistCurrentState);
-            document.addEventListener('visibilitychange', function() {
-                if (document.visibilityState === 'hidden') persistCurrentState();
-            });
+            
+            // Global pointer tracking for custom pointer drag-drop engine
+            window.addEventListener('pointermove', onGlobalPointerMove);
+            window.addEventListener('pointerup', onGlobalPointerUp);
+
             setInterval(persistCurrentState, 5000);
         };
 
@@ -877,101 +860,177 @@
             });
         }
 
-        // ---------- CARD-LEVEL DRAG & DROP WITH CUSTOM LIVE PREVIEW ----------
-        function handleDragStart(e, blockId) {
-            draggedBlockId = blockId;
-            const cardElement = e.currentTarget;
-            cardElement.classList.add('dragging-card');
-            e.dataTransfer.effectAllowed = 'move';
-            e.dataTransfer.setData('text/plain', blockId);
-            
-            // Generate a live fully interactive custom clone ghost preview attached right to the mouse cursor!
-            const ghost = cardElement.cloneNode(true);
-            ghost.style.width = `${cardElement.offsetWidth}px`;
-            ghost.style.position = 'absolute';
-            ghost.style.top = '-1000px';
-            ghost.style.left = '-1000px';
-            ghost.style.opacity = '0.9';
-            ghost.style.zIndex = '99999';
-            ghost.style.pointerEvents = 'none';
+        // ---------- POINTER-BASED CUSTOM DRAG & DROP ENGINE (NO LOOPS/NO BROWSER GHOST) ----------
+        function startCardDrag(e, blockId) {
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON' || e.target.tagName === 'SELECT') return;
+            const cardEl = document.getElementById(`card-${blockId}`);
+            if (!cardEl) return;
+
+            const rect = cardEl.getBoundingClientRect();
+            const ghost = cardEl.cloneNode(true);
+            ghost.className += ' floating-ghost';
+            ghost.style.width = `${rect.width}px`;
+            ghost.style.left = `${rect.left}px`;
+            ghost.style.top = `${rect.top}px`;
             document.body.appendChild(ghost);
 
-            // Pass the cloned preview element as the custom drag feedback image
-            e.dataTransfer.setDragImage(ghost, 20, 20);
-            
-            // Clean up the temporary ghost from DOM right after drag starts
-            setTimeout(() => ghost.remove(), 0);
-        }
+            cardEl.classList.add('dragging-card');
 
-        function handleDragEnd(e) {
-            e.currentTarget.classList.remove('dragging-card');
-            clearDropHighlights();
-            draggedBlockId = null;
-            currentDropTargetId = null;
-            dropAction = null;
-        }
+            dragSession = {
+                type: 'card',
+                blockId: blockId,
+                element: cardEl,
+                ghost: ghost,
+                startX: e.clientX,
+                startY: e.clientY,
+                offsetX: e.clientX - rect.left,
+                offsetY: e.clientY - rect.top
+            };
 
-        function handleDragOver(e, targetBlockId) {
             e.preventDefault();
-            e.dataTransfer.dropEffect = 'move';
-            if (!draggedBlockId || draggedBlockId === targetBlockId) return;
+        }
 
-            const targetCard = document.getElementById(`card-${targetBlockId}`);
-            if (!targetCard) return;
+        function startFieldDrag(e, blockId, fieldId) {
+            if (e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON' || e.target.tagName === 'SELECT') return;
+            const rowEl = document.getElementById(`field-row-${blockId}-${fieldId}`);
+            if (!rowEl) return;
 
-            const rect = targetCard.getBoundingClientRect();
-            const offsetY = e.clientY - rect.top;
+            const rect = rowEl.getBoundingClientRect();
+            const ghost = rowEl.cloneNode(true);
+            ghost.className += ' floating-ghost';
+            ghost.style.width = `${rect.width}px`;
+            ghost.style.left = `${rect.left}px`;
+            ghost.style.top = `${rect.top}px`;
+            document.body.appendChild(ghost);
 
-            clearDropHighlights();
+            rowEl.classList.add('dragging-field');
 
-            if (offsetY < rect.height * 0.35) {
-                targetCard.classList.add('drop-target-reorder');
-                currentDropTargetId = targetBlockId;
-                dropAction = 'reorder';
-            } else {
-                targetCard.classList.add('drop-target-connect', 'animate-pulseGlow');
-                currentDropTargetId = targetBlockId;
-                dropAction = 'connect';
+            dragSession = {
+                type: 'field',
+                blockId: blockId,
+                fieldId: fieldId,
+                element: rowEl,
+                ghost: ghost,
+                startX: e.clientX,
+                startY: e.clientY,
+                offsetX: e.clientX - rect.left,
+                offsetY: e.clientY - rect.top
+            };
+
+            e.preventDefault();
+        }
+
+        function onGlobalPointerMove(e) {
+            if (!dragSession) return;
+
+            // Update floating ghost coordinates
+            dragSession.ghost.style.left = `${e.clientX - dragSession.offsetX}px`;
+            dragSession.ghost.style.top = `${e.clientY - dragSession.offsetY}px`;
+
+            // Clear highlights
+            clearAllHighlights();
+
+            // Find element under pointer
+            dragSession.ghost.style.display = 'none';
+            const targetEl = document.elementFromPoint(e.clientX, e.clientY);
+            dragSession.ghost.style.display = 'block';
+
+            if (!targetEl) return;
+
+            if (dragSession.type === 'card') {
+                const cardTarget = targetEl.closest('.recipe-card');
+                if (cardTarget && cardTarget.id !== `card-${dragSession.blockId}`) {
+                    const targetBlockId = cardTarget.id.replace('card-', '');
+                    const rect = cardTarget.getBoundingClientRect();
+                    const offsetY = e.clientY - rect.top;
+
+                    if (offsetY < rect.height * 0.35) {
+                        cardTarget.classList.add('drop-target-reorder');
+                        dragSession.targetBlockId = targetBlockId;
+                        dragSession.dropAction = 'reorder';
+                    } else {
+                        cardTarget.classList.add('drop-target-connect', 'animate-pulseGlow');
+                        dragSession.targetBlockId = targetBlockId;
+                        dragSession.dropAction = 'connect';
+                    }
+                }
+            } else if (dragSession.type === 'field') {
+                const fieldTarget = targetEl.closest('.field-row');
+                if (fieldTarget) {
+                    const matchParts = fieldTarget.id.replace('field-row-', '').split('-');
+                    const targetBlockId = matchParts[0];
+                    const targetFieldId = matchParts.slice(1).join('-');
+
+                    const rect = fieldTarget.getBoundingClientRect();
+                    const midY = rect.top + rect.height / 2;
+
+                    dragSession.targetBlockId = targetBlockId;
+                    dragSession.targetFieldId = targetFieldId;
+
+                    if (e.clientY < midY) {
+                        fieldTarget.classList.add('drop-target-field-top');
+                        dragSession.dropAction = 'field-top';
+                    } else {
+                        fieldTarget.classList.add('drop-target-field-bottom');
+                        dragSession.dropAction = 'field-bottom';
+                    }
+                }
             }
         }
 
-        function handleDragLeave(e, targetBlockId) {
-            const targetCard = document.getElementById(`card-${targetBlockId}`);
-            if (targetCard) {
-                targetCard.classList.remove('drop-target-connect', 'drop-target-reorder', 'animate-pulseGlow');
-            }
-        }
+        function onGlobalPointerUp(e) {
+            if (!dragSession) return;
 
-        function handleDrop(e, targetBlockId) {
-            e.preventDefault();
-            clearDropHighlights();
+            dragSession.ghost.remove();
+            dragSession.element.classList.remove('dragging-card', 'dragging-field');
+            clearAllHighlights();
 
-            if (!draggedBlockId || draggedBlockId === targetBlockId) return;
             const blocks = getActiveBlocks();
 
-            if (dropAction === 'connect') {
-                if (!isAncestor(draggedBlockId, targetBlockId)) {
-                    const block = blocks.find(b => b.id === draggedBlockId);
-                    if (block) {
-                        block.parentId = targetBlockId;
+            if (dragSession.type === 'card' && dragSession.targetBlockId && dragSession.targetBlockId !== dragSession.blockId) {
+                if (dragSession.dropAction === 'connect') {
+                    if (!isAncestor(dragSession.blockId, dragSession.targetBlockId)) {
+                        const block = blocks.find(b => b.id === dragSession.blockId);
+                        if (block) {
+                            block.parentId = dragSession.targetBlockId;
+                            saveToLocalStorage();
+                            renderAllBlocks();
+                        }
+                    } else {
+                        alert("Cannot connect to a child node to prevent circular loops!");
+                    }
+                } else if (dragSession.dropAction === 'reorder') {
+                    const draggedIdx = blocks.findIndex(b => b.id === dragSession.blockId);
+                    const targetIdx = blocks.findIndex(b => b.id === dragSession.targetBlockId);
+                    if (draggedIdx !== -1 && targetIdx !== -1) {
+                        const [moved] = blocks.splice(draggedIdx, 1);
+                        blocks.splice(targetIdx, 0, moved);
                         saveToLocalStorage();
                         renderAllBlocks();
                     }
-                } else {
-                    alert("Cannot connect to a child node to prevent circular loops!");
                 }
-            } else if (dropAction === 'reorder') {
-                const draggedIdx = blocks.findIndex(b => b.id === draggedBlockId);
-                const targetIdx = blocks.findIndex(b => b.id === targetBlockId);
+            } else if (dragSession.type === 'field' && dragSession.targetBlockId && dragSession.targetFieldId) {
+                const sourceBlock = blocks.find(b => b.id === dragSession.blockId);
+                const targetBlock = blocks.find(b => b.id === dragSession.targetBlockId);
 
-                if (draggedIdx !== -1 && targetIdx !== -1) {
-                    const [moved] = blocks.splice(draggedIdx, 1);
-                    blocks.splice(targetIdx, 0, moved);
-
-                    reorderCardsDom();
-                    saveToLocalStorage();
+                if (sourceBlock && targetBlock) {
+                    const fieldIdx = sourceBlock.fields.findIndex(f => f.id === dragSession.fieldId);
+                    if (fieldIdx !== -1) {
+                        const [movedField] = sourceBlock.fields.splice(fieldIdx, 1);
+                        
+                        const targetFieldIdx = targetBlock.fields.findIndex(f => f.id === dragSession.targetFieldId);
+                        let insertIdx = targetFieldIdx;
+                        if (dragSession.dropAction === 'field-bottom') {
+                            insertIdx++;
+                        }
+                        targetBlock.fields.splice(insertIdx, 0, movedField);
+                        saveToLocalStorage();
+                        renderAllBlocks();
+                    }
                 }
             }
+
+            dragSession = null;
         }
 
         function isAncestor(ancestorId, childId) {
@@ -984,107 +1043,9 @@
             return false;
         }
 
-        function clearDropHighlights() {
-            document.querySelectorAll('.drop-target-connect, .drop-target-reorder').forEach(el => {
-                el.classList.remove('drop-target-connect', 'drop-target-reorder', 'animate-pulseGlow');
-            });
-        }
-
-        function reorderCardsDom() {
-            const container = document.getElementById('recipes-container');
-            const blocks = getActiveBlocks();
-            if (!container) return;
-            blocks.forEach(block => {
-                const el = document.getElementById(`card-${block.id}`);
-                if (el) container.appendChild(el);
-            });
-        }
-
-        // ---------- FIELD-LEVEL DRAG & DROP WITH CUSTOM LIVE PREVIEW ----------
-        function handleFieldDragStart(e, blockId, fieldId) {
-            e.stopPropagation();
-            draggedFieldBlockId = blockId;
-            draggedFieldId = fieldId;
-            const rowElement = e.currentTarget;
-            rowElement.classList.add('dragging-field');
-            e.dataTransfer.effectAllowed = 'move';
-            e.dataTransfer.setData('text/plain', fieldId);
-
-            // Generate a live custom clone preview for fields as well
-            const ghost = rowElement.cloneNode(true);
-            ghost.style.width = `${rowElement.offsetWidth}px`;
-            ghost.style.position = 'absolute';
-            ghost.style.top = '-1000px';
-            ghost.style.left = '-1000px';
-            ghost.style.opacity = '0.9';
-            ghost.style.zIndex = '99999';
-            ghost.style.pointerEvents = 'none';
-            document.body.appendChild(ghost);
-
-            e.dataTransfer.setDragImage(ghost, 15, 15);
-            setTimeout(() => ghost.remove(), 0);
-        }
-
-        function handleFieldDragEnd(e) {
-            e.stopPropagation();
-            e.currentTarget.classList.remove('dragging-field');
-            clearFieldDropHighlights();
-            draggedFieldBlockId = null;
-            draggedFieldId = null;
-        }
-
-        function handleFieldDragOver(e, blockId, fieldId) {
-            e.preventDefault();
-            e.stopPropagation();
-            e.dataTransfer.dropEffect = 'move';
-            if (!draggedFieldId || draggedFieldBlockId !== blockId || draggedFieldId === fieldId) return;
-
-            clearFieldDropHighlights();
-            e.currentTarget.classList.add('drop-target-field');
-        }
-
-        function handleFieldDragLeave(e) {
-            e.stopPropagation();
-            e.currentTarget.classList.remove('drop-target-field');
-        }
-
-        function handleFieldDrop(e, blockId, fieldId) {
-            e.preventDefault();
-            e.stopPropagation();
-            clearFieldDropHighlights();
-
-            if (!draggedFieldId || draggedFieldBlockId !== blockId || draggedFieldId === fieldId) return;
-
-            const blocks = getActiveBlocks();
-            const block = blocks.find(b => b.id === blockId);
-            if (!block) return;
-
-            const fromIdx = block.fields.findIndex(f => f.id === draggedFieldId);
-            const toIdx = block.fields.findIndex(f => f.id === fieldId);
-            if (fromIdx === -1 || toIdx === -1) return;
-
-            const [moved] = block.fields.splice(fromIdx, 1);
-            block.fields.splice(toIdx, 0, moved);
-
-            reorderFieldDom(blockId);
-            saveToLocalStorage();
-        }
-
-        function clearFieldDropHighlights() {
-            document.querySelectorAll('.drop-target-field').forEach(el => {
-                el.classList.remove('drop-target-field');
-            });
-        }
-
-        function reorderFieldDom(blockId) {
-            const blocks = getActiveBlocks();
-            const block = blocks.find(b => b.id === blockId);
-            const anchor = document.getElementById(`actions-bar-${blockId}`);
-            if (!block || !anchor || !anchor.parentElement) return;
-            const parent = anchor.parentElement;
-            block.fields.forEach(field => {
-                const rowEl = document.getElementById(`field-row-${blockId}-${field.id}`);
-                if (rowEl) parent.insertBefore(rowEl, anchor);
+        function clearAllHighlights() {
+            document.querySelectorAll('.drop-target-connect, .drop-target-reorder, .drop-target-field-top, .drop-target-field-bottom, .animate-pulseGlow').forEach(el => {
+                el.classList.remove('drop-target-connect', 'drop-target-reorder', 'drop-target-field-top', 'drop-target-field-bottom', 'animate-pulseGlow');
             });
         }
 
@@ -1174,23 +1135,17 @@
 
             return `
             <div id="card-${block.id}" 
-                draggable="true"
-                ondragstart="handleDragStart(event, '${block.id}')"
-                ondragend="handleDragEnd(event)"
-                ondragover="handleDragOver(event, '${block.id}')"
-                ondragleave="handleDragLeave(event, '${block.id}')"
-                ondrop="handleDrop(event, '${block.id}')"
                 class="recipe-card bg-albion-card dark:bg-albion-card bg-white border border-albion-border rounded-xl shadow-lg relative overflow-hidden group">
                 
                 <!-- Block Header -->
                 <div class="bg-slate-900/60 dark:bg-slate-900/60 bg-slate-100 p-3 sm:p-4 border-b border-albion-border flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
                     <div class="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
-                        <div class="cursor-grab active:cursor-grabbing text-slate-400 hover:text-albion-gold p-1 flex-shrink-0" title="Drag to reorder / connect">
+                        <div onpointerdown="startCardDrag(event, '${block.id}')" class="cursor-grab active:cursor-grabbing text-slate-400 hover:text-albion-gold p-1 flex-shrink-0" title="Drag to reorder / connect">
                             <i data-lucide="grip-vertical" class="w-4 h-4 sm:w-5 sm:h-5"></i>
                         </div>
 
-                        <div class="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 flex-1 min-w-0" draggable="false" ondragstart="event.stopPropagation()">
-                            <input type="text" value="${escapeHtml(block.title)}" draggable="false"
+                        <div class="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 flex-1 min-w-0">
+                            <input type="text" value="${escapeHtml(block.title)}"
                                 data-block="${block.id}" data-key="__title__" data-kind="text"
                                 oninput="updateBlockTitle('${block.id}', this.value)"
                                 class="bg-transparent border border-transparent hover:border-albion-border focus:border-albion-gold rounded px-1.5 py-0.5 font-bold text-sm sm:text-base w-full max-w-xs focus:outline-none transition" 
@@ -1199,7 +1154,7 @@
                             ${parentBlock ? `
                                 <span class="inline-flex items-center gap-1 text-[10px] sm:text-[11px] bg-blue-500/10 text-blue-400 border border-blue-500/30 px-2 py-0.5 rounded-full w-fit">
                                     <i data-lucide="link" class="w-3 h-3"></i> Linked: ${escapeHtml(parentBlock.title)}
-                                    <button onclick="disconnectBlock('${block.id}')" draggable="false" title="Disconnect" class="hover:text-red-400 ml-1">
+                                    <button onclick="disconnectBlock('${block.id}')" title="Disconnect" class="hover:text-red-400 ml-1">
                                         <i data-lucide="unlink" class="w-3 h-3"></i>
                                     </button>
                                 </span>
@@ -1208,7 +1163,7 @@
                     </div>
 
                     <!-- Card Metrics -->
-                    <div class="flex items-center justify-between sm:justify-end gap-3 text-xs sm:text-sm border-t sm:border-t-0 pt-2 sm:pt-0 border-albion-border" draggable="false" ondragstart="event.stopPropagation()">
+                    <div class="flex items-center justify-between sm:justify-end gap-3 text-xs sm:text-sm border-t sm:border-t-0 pt-2 sm:pt-0 border-albion-border">
                         <div class="text-left sm:text-right">
                             <span class="text-[9px] sm:text-xs text-slate-400 block">Net Gain</span>
                             <span class="font-bold card-net-profit ${totals.netProfit >= 0 ? 'text-emerald-400' : 'text-red-400'}">
@@ -1219,7 +1174,7 @@
                             <span class="text-[9px] sm:text-xs text-slate-400 block">ROI</span>
                             <span class="font-bold text-blue-400 card-roi">${totals.roi.toFixed(1)}%</span>
                         </div>
-                        <button onclick="removeRecipeBlock('${block.id}')" draggable="false" title="Delete Node" class="p-1.5 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg ml-1">
+                        <button onclick="removeRecipeBlock('${block.id}')" title="Delete Node" class="p-1.5 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg ml-1">
                             <i data-lucide="trash-2" class="w-4 h-4"></i>
                         </button>
                     </div>
@@ -1230,18 +1185,18 @@
                     ${block.fields.map(field => renderFieldRowHTML(block.id, field)).join('')}
 
                     <!-- Action Bar for adding fields -->
-                    <div id="actions-bar-${block.id}" class="pt-2.5 border-t border-albion-border/60 flex flex-col sm:flex-row gap-2 items-stretch sm:items-center justify-between" draggable="false" ondragstart="event.stopPropagation()">
+                    <div id="actions-bar-${block.id}" class="pt-2.5 border-t border-albion-border/60 flex flex-col sm:flex-row gap-2 items-stretch sm:items-center justify-between">
                         <div class="grid grid-cols-2 xs:flex xs:flex-wrap gap-1.5 sm:gap-2">
-                            <button onclick="addFieldToBlock('${block.id}', 'rrr')" draggable="false" class="px-2.5 py-1.5 bg-slate-800/40 hover:bg-slate-700 text-slate-200 border border-albion-border rounded-lg text-[11px] sm:text-xs font-medium flex items-center justify-center gap-1">
+                            <button onclick="addFieldToBlock('${block.id}', 'rrr')" class="px-2.5 py-1.5 bg-slate-800/40 hover:bg-slate-700 text-slate-200 border border-albion-border rounded-lg text-[11px] sm:text-xs font-medium flex items-center justify-center gap-1">
                                 <i data-lucide="refresh-cw" class="w-3 h-3 text-blue-400"></i> RRR Output
                             </button>
-                            <button onclick="addFieldToBlock('${block.id}', 'station_fee')" draggable="false" class="px-2.5 py-1.5 bg-slate-800/40 hover:bg-slate-700 text-slate-200 border border-albion-border rounded-lg text-[11px] sm:text-xs font-medium flex items-center justify-center gap-1">
+                            <button onclick="addFieldToBlock('${block.id}', 'station_fee')" class="px-2.5 py-1.5 bg-slate-800/40 hover:bg-slate-700 text-slate-200 border border-albion-border rounded-lg text-[11px] sm:text-xs font-medium flex items-center justify-center gap-1">
                                 <i data-lucide="calculator" class="w-3 h-3 text-albion-gold"></i> Station Fee
                             </button>
-                            <button onclick="addFieldToBlock('${block.id}', 'standard')" draggable="false" class="px-2.5 py-1.5 bg-slate-800/40 hover:bg-slate-700 text-slate-200 border border-albion-border rounded-lg text-[11px] sm:text-xs font-medium flex items-center justify-center gap-1">
+                            <button onclick="addFieldToBlock('${block.id}', 'standard')" class="px-2.5 py-1.5 bg-slate-800/40 hover:bg-slate-700 text-slate-200 border border-albion-border rounded-lg text-[11px] sm:text-xs font-medium flex items-center justify-center gap-1">
                                 <i data-lucide="plus" class="w-3 h-3 text-emerald-400"></i> Expense/Income
                             </button>
-                            <button onclick="addFieldToBlock('${block.id}', 'tax')" draggable="false" class="px-2.5 py-1.5 bg-slate-800/40 hover:bg-slate-700 text-slate-200 border border-albion-border rounded-lg text-[11px] sm:text-xs font-medium flex items-center justify-center gap-1">
+                            <button onclick="addFieldToBlock('${block.id}', 'tax')" class="px-2.5 py-1.5 bg-slate-800/40 hover:bg-slate-700 text-slate-200 border border-albion-border rounded-lg text-[11px] sm:text-xs font-medium flex items-center justify-center gap-1">
                                 <i data-lucide="percent" class="w-3 h-3 text-amber-400"></i> Market Tax
                             </button>
                         </div>
@@ -1257,17 +1212,8 @@
             `;
         }
 
-        function fieldDragAttrs(blockId, fieldId) {
-            return `draggable="true"
-                ondragstart="handleFieldDragStart(event, '${blockId}', '${fieldId}')"
-                ondragend="handleFieldDragEnd(event)"
-                ondragover="handleFieldDragOver(event, '${blockId}', '${fieldId}')"
-                ondragleave="handleFieldDragLeave(event)"
-                ondrop="handleFieldDrop(event, '${blockId}', '${fieldId}')"`;
-        }
-
-        function fieldGrip(title) {
-            return `<div class="field-grip text-slate-400 hover:text-albion-gold flex-shrink-0 p-1" title="${title}">
+        function fieldGrip(blockId, fieldId, title) {
+            return `<div onpointerdown="startFieldDrag(event, '${blockId}', '${fieldId}')" class="field-grip text-slate-400 hover:text-albion-gold flex-shrink-0 p-1" title="${title}">
                 <i data-lucide="grip-vertical" class="w-3.5 h-3.5"></i>
             </div>`;
         }
@@ -1282,63 +1228,63 @@
                 const netGainedPerCraft = rrrData.totalQty > 0 ? (grossValueGained - rawCost) / rrrData.totalQty : 0;
 
                 return `
-                <div id="field-row-${blockId}-${field.id}" ${fieldDragAttrs(blockId, field.id)} class="field-row bg-slate-900/30 dark:bg-slate-900/30 bg-slate-50 p-2.5 rounded-lg border border-blue-500/30 flex flex-wrap items-center gap-2">
-                    ${fieldGrip('Drag row')}
+                <div id="field-row-${blockId}-${field.id}" class="field-row bg-slate-900/30 dark:bg-slate-900/30 bg-slate-50 p-2.5 rounded-lg border border-blue-500/30 flex flex-wrap items-center gap-2">
+                    ${fieldGrip(blockId, field.id, 'Drag row')}
                     <div class="p-1 bg-blue-500/10 text-blue-400 rounded flex-shrink-0">
                         <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
                     </div>
 
-                    <input type="text" value="${escapeHtml(field.name)}" draggable="false" ondragstart="event.stopPropagation()"
+                    <input type="text" value="${escapeHtml(field.name)}"
                         data-block="${blockId}" data-field="${field.id}" data-key="name" data-kind="text"
                         oninput="handleInputChange(this, '${blockId}', '${field.id}', 'name', 'text')"
                         class="${inputClass} flex-1 min-w-[110px] focus:border-blue-400" placeholder="Item Name">
 
-                    <div class="flex items-center gap-1" draggable="false" ondragstart="event.stopPropagation()">
+                    <div class="flex items-center gap-1">
                         <span class="text-[9px] text-slate-400 uppercase">Qty</span>
-                        <input type="text" value="${field.qty}" draggable="false"
+                        <input type="text" value="${field.qty}"
                             data-block="${blockId}" data-field="${field.id}" data-key="qty" data-kind="int"
                             oninput="handleInputChange(this, '${blockId}', '${field.id}', 'qty', 'int')"
                             onblur="handleInputBlur(this, '${blockId}', '${field.id}', 'qty', 'int')"
                             class="${inputClass} w-14 sm:w-16 focus:border-blue-400">
                     </div>
 
-                    <div class="flex items-center gap-1" draggable="false" ondragstart="event.stopPropagation()">
+                    <div class="flex items-center gap-1">
                         <span class="text-[9px] text-slate-400 uppercase">RRR%</span>
-                        <input type="text" value="${field.rrr}" draggable="false"
+                        <input type="text" value="${field.rrr}"
                             data-block="${blockId}" data-field="${field.id}" data-key="rrr" data-kind="float"
                             oninput="handleInputChange(this, '${blockId}', '${field.id}', 'rrr', 'float')"
                             onblur="handleInputBlur(this, '${blockId}', '${field.id}', 'rrr', 'float')"
                             class="${inputClass} text-blue-400 font-semibold w-14 sm:w-16 focus:border-blue-400">
                     </div>
 
-                    <div class="flex items-center gap-1" draggable="false" ondragstart="event.stopPropagation()">
+                    <div class="flex items-center gap-1">
                         <span class="text-[9px] text-slate-400 uppercase">Cost</span>
-                        <input type="text" value="${field.price}" draggable="false"
+                        <input type="text" value="${field.price}"
                             data-block="${blockId}" data-field="${field.id}" data-key="price" data-kind="float"
                             oninput="handleInputChange(this, '${blockId}', '${field.id}', 'price', 'float')"
                             onblur="handleInputBlur(this, '${blockId}', '${field.id}', 'price', 'float')"
                             class="${inputClass} w-16 sm:w-20 focus:border-blue-400">
                     </div>
 
-                    <div class="flex items-center gap-1" draggable="false" ondragstart="event.stopPropagation()">
+                    <div class="flex items-center gap-1">
                         <span class="text-[9px] text-albion-gold uppercase font-semibold">Sell</span>
-                        <input type="text" value="${field.unitCraftedValue}" draggable="false"
+                        <input type="text" value="${field.unitCraftedValue}"
                             data-block="${blockId}" data-field="${field.id}" data-key="unitCraftedValue" data-kind="float"
                             oninput="handleInputChange(this, '${blockId}', '${field.id}', 'unitCraftedValue', 'float')"
                             onblur="handleInputBlur(this, '${blockId}', '${field.id}', 'unitCraftedValue', 'float')"
                             class="bg-slate-900/60 dark:bg-slate-900/60 bg-white border border-albion-gold/40 rounded px-2 py-1 text-xs text-albion-gold font-semibold w-16 sm:w-20 focus:outline-none focus:border-albion-gold">
                     </div>
 
-                    <button onclick="openRRRModal(${field.qty || 0}, ${field.rrr || 0})" draggable="false" ondragstart="event.stopPropagation()" class="bg-blue-950/60 border border-blue-500/40 px-2 py-1 rounded text-[11px] flex items-center gap-1 text-blue-300">
+                    <button onclick="openRRRModal(${field.qty || 0}, ${field.rrr || 0})" class="bg-blue-950/60 border border-blue-500/40 px-2 py-1 rounded text-[11px] flex items-center gap-1 text-blue-300">
                         <span>Out: <strong class="row-rrr-totalqty">${formatInt(rrrData.totalQty)}</strong></span>
                     </button>
 
-                    <div class="min-w-[90px] text-right font-medium text-xs row-subtotal ml-auto" draggable="false">
+                    <div class="min-w-[90px] text-right font-medium text-xs row-subtotal ml-auto">
                         <div class="text-emerald-400">+${formatNumber(grossValueGained)} Silver</div>
                         <div class="text-[9px] text-slate-400">Gained/Unit: ${formatNumber(netGainedPerCraft)}</div>
                     </div>
 
-                    <button onclick="removeField('${blockId}', '${field.id}')" draggable="false" ondragstart="event.stopPropagation()" class="text-slate-400 hover:text-red-400 p-1" title="Delete">
+                    <button onclick="removeField('${blockId}', '${field.id}')" class="text-slate-400 hover:text-red-400 p-1" title="Delete">
                         <i data-lucide="x" class="w-4 h-4"></i>
                     </button>
                 </div>
@@ -1350,49 +1296,49 @@
                 const calculatedFee = (field.feePer100Nutrition || 0) * (totalNutrition / 100);
 
                 return `
-                <div id="field-row-${blockId}-${field.id}" ${fieldDragAttrs(blockId, field.id)} class="field-row bg-slate-900/30 dark:bg-slate-900/30 bg-slate-50 p-2.5 rounded-lg border border-albion-gold/30 flex flex-wrap items-center gap-2">
-                    ${fieldGrip('Drag row')}
+                <div id="field-row-${blockId}-${field.id}" class="field-row bg-slate-900/30 dark:bg-slate-900/30 bg-slate-50 p-2.5 rounded-lg border border-albion-gold/30 flex flex-wrap items-center gap-2">
+                    ${fieldGrip(blockId, field.id, 'Drag row')}
                     <div class="p-1 bg-albion-gold/10 text-albion-gold rounded flex-shrink-0">
                         <i data-lucide="calculator" class="w-3.5 h-3.5"></i>
                     </div>
 
-                    <input type="text" value="${escapeHtml(field.name)}" draggable="false" ondragstart="event.stopPropagation()"
+                    <input type="text" value="${escapeHtml(field.name)}"
                         data-block="${blockId}" data-field="${field.id}" data-key="name" data-kind="text"
                         oninput="handleInputChange(this, '${blockId}', '${field.id}', 'name', 'text')"
                         class="${inputClass} flex-1 min-w-[110px] focus:border-albion-gold" placeholder="Station Tax">
 
-                    <div class="flex items-center gap-1" draggable="false" ondragstart="event.stopPropagation()">
+                    <div class="flex items-center gap-1">
                         <span class="text-[9px] text-slate-400 uppercase">Fee/100Nut</span>
-                        <input type="text" value="${field.feePer100Nutrition}" draggable="false"
+                        <input type="text" value="${field.feePer100Nutrition}"
                             data-block="${blockId}" data-field="${field.id}" data-key="feePer100Nutrition" data-kind="float"
                             oninput="handleInputChange(this, '${blockId}', '${field.id}', 'feePer100Nutrition', 'float')"
                             onblur="handleInputBlur(this, '${blockId}', '${field.id}', 'feePer100Nutrition', 'float')"
                             class="${inputClass} text-albion-gold font-semibold w-16 focus:border-albion-gold">
                     </div>
 
-                    <div class="flex items-center gap-1" draggable="false" ondragstart="event.stopPropagation()">
+                    <div class="flex items-center gap-1">
                         <span class="text-[9px] text-slate-400 uppercase">Crafts</span>
-                        <input type="text" value="${field.totalCrafts}" draggable="false"
+                        <input type="text" value="${field.totalCrafts}"
                             data-block="${blockId}" data-field="${field.id}" data-key="totalCrafts" data-kind="int"
                             oninput="handleInputChange(this, '${blockId}', '${field.id}', 'totalCrafts', 'int')"
                             onblur="handleInputBlur(this, '${blockId}', '${field.id}', 'totalCrafts', 'int')"
                             class="${inputClass} w-14 focus:border-albion-gold">
                     </div>
 
-                    <div class="flex items-center gap-1" draggable="false" ondragstart="event.stopPropagation()">
+                    <div class="flex items-center gap-1">
                         <span class="text-[9px] text-slate-400 uppercase">Nut/Craft</span>
-                        <input type="text" value="${field.nutritionPerCraft}" draggable="false"
+                        <input type="text" value="${field.nutritionPerCraft}"
                             data-block="${blockId}" data-field="${field.id}" data-key="nutritionPerCraft" data-kind="float"
                             oninput="handleInputChange(this, '${blockId}', '${field.id}', 'nutritionPerCraft', 'float')"
                             onblur="handleInputBlur(this, '${blockId}', '${field.id}', 'nutritionPerCraft', 'float')"
                             class="${inputClass} w-14 focus:border-albion-gold">
                     </div>
 
-                    <div class="min-w-[90px] text-right font-medium text-xs text-red-400 row-subtotal ml-auto" draggable="false">
+                    <div class="min-w-[90px] text-right font-medium text-xs text-red-400 row-subtotal ml-auto">
                         -${formatNumber(calculatedFee)} Silver
                     </div>
 
-                    <button onclick="removeField('${blockId}', '${field.id}')" draggable="false" ondragstart="event.stopPropagation()" class="text-slate-400 hover:text-red-400 p-1" title="Delete">
+                    <button onclick="removeField('${blockId}', '${field.id}')" class="text-slate-400 hover:text-red-400 p-1" title="Delete">
                         <i data-lucide="x" class="w-4 h-4"></i>
                     </button>
                 </div>
@@ -1402,18 +1348,18 @@
             if (field.type === 'standard') {
                 const subtotal = (field.qty || 0) * (field.price || 0);
                 return `
-                <div id="field-row-${blockId}-${field.id}" ${fieldDragAttrs(blockId, field.id)} class="field-row bg-slate-900/30 dark:bg-slate-900/30 bg-slate-50 p-2.5 rounded-lg border border-albion-border/50 flex flex-wrap items-center gap-2">
-                    ${fieldGrip('Drag row')}
+                <div id="field-row-${blockId}-${field.id}" class="field-row bg-slate-900/30 dark:bg-slate-900/30 bg-slate-50 p-2.5 rounded-lg border border-albion-border/50 flex flex-wrap items-center gap-2">
+                    ${fieldGrip(blockId, field.id, 'Drag row')}
                     <div class="p-1 bg-slate-800 text-slate-400 rounded flex-shrink-0">
                         <i data-lucide="${field.isIncome ? 'arrow-down-left' : 'arrow-up-right'}" class="w-3.5 h-3.5 ${field.isIncome ? 'text-emerald-400' : 'text-red-400'}"></i>
                     </div>
 
-                    <input type="text" value="${escapeHtml(field.name)}" draggable="false" ondragstart="event.stopPropagation()"
+                    <input type="text" value="${escapeHtml(field.name)}"
                         data-block="${blockId}" data-field="${field.id}" data-key="name" data-kind="text"
                         oninput="handleInputChange(this, '${blockId}', '${field.id}', 'name', 'text')"
                         class="${inputClass} flex-1 min-w-[110px]" placeholder="Name">
 
-                    <select draggable="false" ondragstart="event.stopPropagation()"
+                    <select
                         data-block="${blockId}" data-field="${field.id}" data-key="isIncome" data-kind="bool"
                         onchange="handleInputChange(this, '${blockId}', '${field.id}', 'isIncome', 'bool')" 
                         class="${inputClass} text-slate-300">
@@ -1421,29 +1367,29 @@
                         <option value="true" ${field.isIncome ? 'selected' : ''}>Income</option>
                     </select>
 
-                    <div class="flex items-center gap-1" draggable="false" ondragstart="event.stopPropagation()">
+                    <div class="flex items-center gap-1">
                         <span class="text-[9px] text-slate-400 uppercase">Qty</span>
-                        <input type="text" value="${field.qty}" draggable="false"
+                        <input type="text" value="${field.qty}"
                             data-block="${blockId}" data-field="${field.id}" data-key="qty" data-kind="float"
                             oninput="handleInputChange(this, '${blockId}', '${field.id}', 'qty', 'float')"
                             onblur="handleInputBlur(this, '${blockId}', '${field.id}', 'qty', 'float')"
                             class="${inputClass} w-16">
                     </div>
 
-                    <div class="flex items-center gap-1" draggable="false" ondragstart="event.stopPropagation()">
+                    <div class="flex items-center gap-1">
                         <span class="text-[9px] text-slate-400 uppercase">Price</span>
-                        <input type="text" value="${field.price}" draggable="false"
+                        <input type="text" value="${field.price}"
                             data-block="${blockId}" data-field="${field.id}" data-key="price" data-kind="float"
                             oninput="handleInputChange(this, '${blockId}', '${field.id}', 'price', 'float')"
                             onblur="handleInputBlur(this, '${blockId}', '${field.id}', 'price', 'float')"
                             class="${inputClass} w-20">
                     </div>
 
-                    <div class="min-w-[80px] text-right font-medium text-xs ${field.isIncome ? 'text-emerald-400' : 'text-slate-300'} row-subtotal ml-auto" draggable="false">
+                    <div class="min-w-[80px] text-right font-medium text-xs ${field.isIncome ? 'text-emerald-400' : 'text-slate-300'} row-subtotal ml-auto">
                         ${field.isIncome ? '+' : '-'}${formatNumber(subtotal)}
                     </div>
 
-                    <button onclick="removeField('${blockId}', '${field.id}')" draggable="false" ondragstart="event.stopPropagation()" class="text-slate-400 hover:text-red-400 p-1" title="Delete">
+                    <button onclick="removeField('${blockId}', '${field.id}')" class="text-slate-400 hover:text-red-400 p-1" title="Delete">
                         <i data-lucide="x" class="w-4 h-4"></i>
                     </button>
                 </div>
@@ -1457,27 +1403,27 @@
                 const taxAmount = field.applyToIncome ? (totals.totalGrossIncome * rate) : (totals.totalCost * rate);
 
                 return `
-                <div id="field-row-${blockId}-${field.id}" ${fieldDragAttrs(blockId, field.id)} class="field-row bg-slate-900/30 dark:bg-slate-900/30 bg-slate-50 p-2.5 rounded-lg border border-amber-500/30 flex flex-wrap items-center gap-2">
-                    ${fieldGrip('Drag row')}
+                <div id="field-row-${blockId}-${field.id}" class="field-row bg-slate-900/30 dark:bg-slate-900/30 bg-slate-50 p-2.5 rounded-lg border border-amber-500/30 flex flex-wrap items-center gap-2">
+                    ${fieldGrip(blockId, field.id, 'Drag row')}
                     <div class="p-1 bg-amber-500/10 text-amber-400 rounded flex-shrink-0">
                         <i data-lucide="percent" class="w-3.5 h-3.5"></i>
                     </div>
 
-                    <input type="text" value="${escapeHtml(field.name)}" draggable="false" ondragstart="event.stopPropagation()"
+                    <input type="text" value="${escapeHtml(field.name)}"
                         data-block="${blockId}" data-field="${field.id}" data-key="name" data-kind="text"
                         oninput="handleInputChange(this, '${blockId}', '${field.id}', 'name', 'text')"
                         class="${inputClass} flex-1 min-w-[110px] focus:border-amber-400" placeholder="Tax Name">
 
-                    <div class="flex items-center gap-1" draggable="false" ondragstart="event.stopPropagation()">
+                    <div class="flex items-center gap-1">
                         <span class="text-[9px] text-slate-400 uppercase">Rate%</span>
-                        <input type="text" value="${field.rate}" draggable="false"
+                        <input type="text" value="${field.rate}"
                             data-block="${blockId}" data-field="${field.id}" data-key="rate" data-kind="float"
                             oninput="handleInputChange(this, '${blockId}', '${field.id}', 'rate', 'float')"
                             onblur="handleInputBlur(this, '${blockId}', '${field.id}', 'rate', 'float')"
                             class="${inputClass} text-amber-400 font-semibold w-16 focus:border-amber-400">
                     </div>
 
-                    <select draggable="false" ondragstart="event.stopPropagation()"
+                    <select
                         data-block="${blockId}" data-field="${field.id}" data-key="applyToIncome" data-kind="bool"
                         onchange="handleInputChange(this, '${blockId}', '${field.id}', 'applyToIncome', 'bool')" 
                         class="${inputClass} text-slate-300">
@@ -1485,11 +1431,11 @@
                         <option value="false" ${!field.applyToIncome ? 'selected' : ''}>On Expenses</option>
                     </select>
 
-                    <div class="min-w-[80px] text-right font-medium text-xs text-amber-400 row-subtotal ml-auto" draggable="false">
+                    <div class="min-w-[80px] text-right font-medium text-xs text-amber-400 row-subtotal ml-auto">
                         -${formatNumber(taxAmount)} Silver
                     </div>
 
-                    <button onclick="removeField('${blockId}', '${field.id}')" draggable="false" ondragstart="event.stopPropagation()" class="text-slate-400 hover:text-red-400 p-1" title="Delete">
+                    <button onclick="removeField('${blockId}', '${field.id}')" class="text-slate-400 hover:text-red-400 p-1" title="Delete">
                         <i data-lucide="x" class="w-4 h-4"></i>
                     </button>
                 </div>
