@@ -67,16 +67,17 @@
             transition: box-shadow 0.22s ease, border-color 0.2s ease;
         }
         
-        /* Floating active dragged ghost element */
+        /* Compact floating dragged ghost element */
         .floating-ghost {
             position: fixed;
             pointer-events: none;
             z-index: 10000;
-            opacity: 0.92;
-            transform: scale(1.02) rotate(1deg);
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.7);
+            opacity: 0.85;
+            transform: scale(0.96);
+            box-shadow: 0 15px 30px -10px rgba(0, 0, 0, 0.5);
             border: 2px solid #D4AF37 !important;
-            backdrop-filter: blur(8px);
+            backdrop-filter: blur(6px);
+            max-width: 320px;
         }
 
         .drop-target-connect {
@@ -328,12 +329,10 @@
         let workspaceTabs = [];
         let activeTabId = null;
         let searchQuery = '';
-        const STORAGE_KEY = 'albion_chain_multitab_data_v6';
+        const STORAGE_KEY = 'albion_chain_multitab_data_v7';
         const THEME_STORAGE_KEY = 'albion_chain_theme';
 
-        // Pointer Drag Engine State
-        let dragSession = null; // { type: 'card'|'field', blockId, fieldId, element, ghost, startX, startY, offsetX, offsetY }
-
+        let dragSession = null; 
         const DEFAULT_TAX_RATE = 10.5;
 
         function evaluateExpression(input) {
@@ -374,7 +373,6 @@
             window.addEventListener('resize', drawConnectorLines);
             window.addEventListener('beforeunload', persistCurrentState);
             
-            // Global pointer tracking for custom pointer drag-drop engine
             window.addEventListener('pointermove', onGlobalPointerMove);
             window.addEventListener('pointerup', onGlobalPointerUp);
 
@@ -479,7 +477,7 @@
                 let value = el.value;
                 if (kind === 'int') value = Math.floor(evaluateExpression(value)) || 0;
                 else if (kind === 'float') value = evaluateExpression(value) || 0;
-                else if (kind === 'bool') value = value === 'true';
+                else if (kind === 'bool') value = (value === 'true' || value === true);
                 field[key] = value;
             });
         }
@@ -686,11 +684,18 @@
                 field[key] = Math.floor(evaluateExpression(rawVal)) || 0;
             } else if (kind === 'float') {
                 field[key] = evaluateExpression(rawVal) || 0;
+            } else if (kind === 'bool') {
+                field[key] = (rawVal === 'true' || rawVal === true);
             } else {
                 field[key] = rawVal;
             }
 
             saveToLocalStorage();
+
+            // If standard field isIncome changed, re-render to update the icon correctly
+            if (key === 'isIncome') {
+                renderAllBlocks();
+            }
         }
 
         function handleInputBlur(el, blockId, fieldId, key, kind) {
@@ -742,7 +747,7 @@
             block.fields.forEach(field => {
                 if (field.type === 'standard') {
                     const subtotal = (field.qty || 0) * (field.price || 0);
-                    if (field.isIncome) {
+                    if (field.isIncome === true || field.isIncome === 'true') {
                         totalGrossIncome += subtotal;
                     } else {
                         totalCost += subtotal;
@@ -833,7 +838,11 @@
                     if (field.type === 'standard') {
                         const subtotal = (field.qty || 0) * (field.price || 0);
                         const subEl = rowEl.querySelector('.row-subtotal');
-                        if (subEl) subEl.innerText = `${field.isIncome ? '+' : '-'}${formatNumber(subtotal)}`;
+                        const isInc = (field.isIncome === true || field.isIncome === 'true');
+                        if (subEl) {
+                            subEl.innerText = `${isInc ? '+' : '-'}${formatNumber(subtotal)}`;
+                            subEl.className = `min-w-[80px] text-right font-medium text-xs ${isInc ? 'text-emerald-400' : 'text-slate-300'} row-subtotal ml-auto`;
+                        }
                     } else if (field.type === 'rrr') {
                         const rrrData = calculateRRR(field.qty || 0, field.rrr || 0);
                         const grossValueGained = rrrData.totalQty * (field.unitCraftedValue || 0);
@@ -860,7 +869,7 @@
             });
         }
 
-        // ---------- POINTER-BASED CUSTOM DRAG & DROP ENGINE (NO LOOPS/NO BROWSER GHOST) ----------
+        // ---------- POINTER DRAG ENGINE ----------
         function startCardDrag(e, blockId) {
             if (e.target.tagName === 'INPUT' || e.target.tagName === 'BUTTON' || e.target.tagName === 'SELECT') return;
             const cardEl = document.getElementById(`card-${blockId}`);
@@ -869,7 +878,7 @@
             const rect = cardEl.getBoundingClientRect();
             const ghost = cardEl.cloneNode(true);
             ghost.className += ' floating-ghost';
-            ghost.style.width = `${rect.width}px`;
+            ghost.style.width = `${Math.min(rect.width, 300)}px`;
             ghost.style.left = `${rect.left}px`;
             ghost.style.top = `${rect.top}px`;
             document.body.appendChild(ghost);
@@ -898,7 +907,7 @@
             const rect = rowEl.getBoundingClientRect();
             const ghost = rowEl.cloneNode(true);
             ghost.className += ' floating-ghost';
-            ghost.style.width = `${rect.width}px`;
+            ghost.style.width = `${Math.min(rect.width, 300)}px`;
             ghost.style.left = `${rect.left}px`;
             ghost.style.top = `${rect.top}px`;
             document.body.appendChild(ghost);
@@ -923,14 +932,11 @@
         function onGlobalPointerMove(e) {
             if (!dragSession) return;
 
-            // Update floating ghost coordinates
             dragSession.ghost.style.left = `${e.clientX - dragSession.offsetX}px`;
             dragSession.ghost.style.top = `${e.clientY - dragSession.offsetY}px`;
 
-            // Clear highlights
             clearAllHighlights();
 
-            // Find element under pointer
             dragSession.ghost.style.display = 'none';
             const targetEl = document.elementFromPoint(e.clientX, e.clientY);
             dragSession.ghost.style.display = 'block';
@@ -1347,11 +1353,12 @@
 
             if (field.type === 'standard') {
                 const subtotal = (field.qty || 0) * (field.price || 0);
+                const isInc = (field.isIncome === true || field.isIncome === 'true');
                 return `
                 <div id="field-row-${blockId}-${field.id}" class="field-row bg-slate-900/30 dark:bg-slate-900/30 bg-slate-50 p-2.5 rounded-lg border border-albion-border/50 flex flex-wrap items-center gap-2">
                     ${fieldGrip(blockId, field.id, 'Drag row')}
-                    <div class="p-1 bg-slate-800 text-slate-400 rounded flex-shrink-0">
-                        <i data-lucide="${field.isIncome ? 'arrow-down-left' : 'arrow-up-right'}" class="w-3.5 h-3.5 ${field.isIncome ? 'text-emerald-400' : 'text-red-400'}"></i>
+                    <div class="p-1 bg-slate-800 rounded flex-shrink-0">
+                        <i data-lucide="${isInc ? 'arrow-down-left' : 'arrow-up-right'}" class="w-3.5 h-3.5 ${isInc ? 'text-emerald-400' : 'text-red-400'}"></i>
                     </div>
 
                     <input type="text" value="${escapeHtml(field.name)}"
@@ -1363,8 +1370,8 @@
                         data-block="${blockId}" data-field="${field.id}" data-key="isIncome" data-kind="bool"
                         onchange="handleInputChange(this, '${blockId}', '${field.id}', 'isIncome', 'bool')" 
                         class="${inputClass} text-slate-300">
-                        <option value="false" ${!field.isIncome ? 'selected' : ''}>Expense</option>
-                        <option value="true" ${field.isIncome ? 'selected' : ''}>Income</option>
+                        <option value="false" ${!isInc ? 'selected' : ''}>Expense</option>
+                        <option value="true" ${isInc ? 'selected' : ''}>Income</option>
                     </select>
 
                     <div class="flex items-center gap-1">
@@ -1385,8 +1392,8 @@
                             class="${inputClass} w-20">
                     </div>
 
-                    <div class="min-w-[80px] text-right font-medium text-xs ${field.isIncome ? 'text-emerald-400' : 'text-slate-300'} row-subtotal ml-auto">
-                        ${field.isIncome ? '+' : '-'}${formatNumber(subtotal)}
+                    <div class="min-w-[80px] text-right font-medium text-xs ${isInc ? 'text-emerald-400' : 'text-slate-300'} row-subtotal ml-auto">
+                        ${isInc ? '+' : '-'}${formatNumber(subtotal)}
                     </div>
 
                     <button onclick="removeField('${blockId}', '${field.id}')" class="text-slate-400 hover:text-red-400 p-1" title="Delete">
