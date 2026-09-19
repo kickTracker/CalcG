@@ -2,7 +2,7 @@
 <html lang="en" class="dark">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
     <title>Albion Online Node Crafting & Profit Calculator</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -27,18 +27,22 @@
                     },
                     keyframes: {
                         fadeIn: { '0%': { opacity: '0', transform: 'translateY(8px)' }, '100%': { opacity: '1', transform: 'translateY(0)' } },
-                        pulseGlow: { '0%, 100%': { borderColor: 'rgba(212, 175, 55, 0.4)' }, '50%': { borderColor: 'rgba(212, 175, 55, 0.9)' } }
+                        pulseGlow: { '0%, 100%': { borderColor: 'rgba(212, 175, 55, 0.4)' }, '50%': { borderColor: 'rgba(212, 175, 55, 0.9)' } },
+                        popIn: { '0%': { opacity: '0', transform: 'scale(0.9)' }, '100%': { opacity: '1', transform: 'scale(1)' } },
+                        flashGain: { '0%': { backgroundColor: 'rgba(16, 185, 129, 0.25)' }, '100%': { backgroundColor: 'transparent' } }
                     },
                     animation: {
                         fadeIn: 'fadeIn 0.25s ease-out forwards',
-                        pulseGlow: 'pulseGlow 2s infinite'
+                        pulseGlow: 'pulseGlow 1.4s infinite',
+                        popIn: 'popIn 0.2s ease-out forwards',
+                        flashGain: 'flashGain 0.6s ease-out'
                     }
                 }
             }
         }
     </script>
     <!-- Lucide Icons -->
-    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/lucide@latest/dist/umd/lucide.min.js"></script>
     <!-- Font -->
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <style>
@@ -66,22 +70,63 @@
             background: #3B82F6;
         }
 
-        /* Drag and Drop visual feedback */
+        /* Smooth base transitions so drag/reorder state changes animate instead of "jump" */
+        .recipe-card {
+            transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.2s ease, box-shadow 0.22s ease, border-color 0.2s ease;
+            will-change: transform;
+        }
+        .field-row {
+            transition: transform 0.18s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease, background-color 0.18s ease;
+            will-change: transform;
+        }
+
+        /* Drag and Drop visual feedback - Card level */
         .dragging-card {
-            opacity: 0.6;
-            transform: scale(0.98);
-            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
+            opacity: 0.55;
+            transform: scale(0.97) rotate(-1.2deg);
+            box-shadow: 0 24px 30px -8px rgba(0, 0, 0, 0.55), 0 10px 12px -6px rgba(0, 0, 0, 0.5);
             cursor: grabbing !important;
         }
 
         .drop-target-connect {
             border-color: #3B82F6 !important;
             background-color: rgba(59, 130, 246, 0.08) !important;
-            box-shadow: 0 0 15px rgba(59, 130, 246, 0.3);
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25), 0 0 20px rgba(59, 130, 246, 0.25);
+            transform: scale(1.012);
         }
 
         .drop-target-reorder {
             border-top: 3px solid #D4AF37 !important;
+            transform: translateY(2px);
+        }
+
+        /* Drag and Drop visual feedback - Field level (inside a recipe) */
+        .dragging-field {
+            opacity: 0.45;
+            transform: scale(0.96) rotate(-0.6deg);
+            box-shadow: 0 14px 22px -8px rgba(0, 0, 0, 0.5);
+            cursor: grabbing !important;
+        }
+
+        .drop-target-field {
+            border-color: #D4AF37 !important;
+            background-color: rgba(212, 175, 55, 0.1) !important;
+            box-shadow: 0 0 0 2px rgba(212, 175, 55, 0.25);
+            transform: scale(1.012);
+        }
+
+        .field-grip {
+            cursor: grab;
+            transition: color 0.15s ease, transform 0.15s ease;
+        }
+        .field-grip:active {
+            cursor: grabbing;
+            transform: scale(1.15);
+        }
+
+        /* Little "just updated" flash on totals */
+        .flash-update {
+            animation: flashGain 0.6s ease-out;
         }
 
         /* SVG Line Canvas Overlay */
@@ -101,10 +146,23 @@
             fill: none;
             stroke-dasharray: 6 3;
             animation: dash 30s linear infinite;
+            filter: drop-shadow(0 0 3px rgba(59, 130, 246, 0.35));
         }
 
         @keyframes dash {
             to { stroke-dashoffset: -1000; }
+        }
+
+        /* Button micro-interactions */
+        button {
+            transition: transform 0.12s ease, background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+        }
+        button:active {
+            transform: scale(0.94);
+        }
+
+        #autosave-indicator {
+            transition: opacity 0.3s ease;
         }
     </style>
 </head>
@@ -120,22 +178,26 @@
                     <h1 class="font-bold text-lg text-white tracking-wide flex items-center gap-2">
                         ALBION <span class="text-albion-gold">CHAIN</span> CALCULATOR
                     </h1>
-                    <p class="text-xs text-slate-400">Drag to Connect Recipes • RRR & 100 Nutrition Optimizer</p>
+                    <p class="text-xs text-slate-400 flex items-center gap-1.5">
+                        <span id="autosave-indicator" class="inline-flex items-center gap-1 text-emerald-400">
+                            <i data-lucide="check-circle-2" class="w-3 h-3"></i> Autosaved in this browser
+                        </span>
+                    </p>
                 </div>
             </div>
 
             <div class="flex items-center space-x-2 sm:space-x-3">
-                <button onclick="addNewRecipeBlock()" class="bg-albion-gold hover:bg-albion-gold-hover text-slate-950 font-semibold px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg text-sm flex items-center gap-1.5 transition shadow-lg shadow-albion-gold/10 active:scale-95">
+                <button onclick="addNewRecipeBlock()" class="bg-albion-gold hover:bg-albion-gold-hover text-slate-950 font-semibold px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg text-sm flex items-center gap-1.5 shadow-lg shadow-albion-gold/10 active:scale-95">
                     <i data-lucide="plus-circle" class="w-4 h-4"></i>
                     <span class="hidden sm:inline">Add Recipe Node</span>
                 </button>
-                <button onclick="exportJSON()" title="Export JSON" class="p-2 bg-slate-800 hover:bg-slate-700 border border-albion-border text-slate-300 rounded-lg text-sm transition active:scale-95">
+                <button onclick="exportJSON()" title="Export JSON" class="p-2 bg-slate-800 hover:bg-slate-700 border border-albion-border text-slate-300 rounded-lg text-sm active:scale-95">
                     <i data-lucide="download" class="w-4 h-4"></i>
                 </button>
-                <button onclick="importJSON()" title="Import JSON" class="p-2 bg-slate-800 hover:bg-slate-700 border border-albion-border text-slate-300 rounded-lg text-sm transition active:scale-95">
+                <button onclick="importJSON()" title="Import JSON" class="p-2 bg-slate-800 hover:bg-slate-700 border border-albion-border text-slate-300 rounded-lg text-sm active:scale-95">
                     <i data-lucide="upload" class="w-4 h-4"></i>
                 </button>
-                <button onclick="resetData()" title="Reset All" class="p-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 rounded-lg text-sm transition active:scale-95">
+                <button onclick="resetData()" title="Reset All" class="p-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 rounded-lg text-sm active:scale-95">
                     <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
                 </button>
             </div>
@@ -148,52 +210,52 @@
 
         <section class="grid grid-cols-2 md:grid-cols-5 gap-3 sm:gap-4 mb-8">
             <!-- Total Costs -->
-            <div class="bg-albion-card border border-albion-border rounded-xl p-4 shadow-sm relative overflow-hidden">
+            <div class="bg-albion-card border border-albion-border rounded-xl p-4 shadow-sm relative overflow-hidden transition-all duration-200 hover:border-red-500/30">
                 <div class="text-xs font-medium text-slate-400 uppercase tracking-wider mb-1 flex items-center justify-between">
                     Total Costs
                     <i data-lucide="trending-down" class="w-4 h-4 text-red-400"></i>
                 </div>
-                <div id="summary-costs" class="text-lg sm:text-xl font-bold text-red-400">0 Silver</div>
+                <div id="summary-costs" class="text-lg sm:text-xl font-bold text-red-400 transition-all duration-200">0 Silver</div>
                 <div class="text-[10px] text-slate-500 mt-0.5">Raw materials & station fees</div>
             </div>
 
             <!-- Gross Income -->
-            <div class="bg-albion-card border border-albion-border rounded-xl p-4 shadow-sm relative overflow-hidden">
+            <div class="bg-albion-card border border-albion-border rounded-xl p-4 shadow-sm relative overflow-hidden transition-all duration-200 hover:border-emerald-500/30">
                 <div class="text-xs font-medium text-slate-400 uppercase tracking-wider mb-1 flex items-center justify-between">
                     Gross Revenue
                     <i data-lucide="trending-up" class="w-4 h-4 text-emerald-400"></i>
                 </div>
-                <div id="summary-revenue" class="text-lg sm:text-xl font-bold text-emerald-400">0 Silver</div>
+                <div id="summary-revenue" class="text-lg sm:text-xl font-bold text-emerald-400 transition-all duration-200">0 Silver</div>
                 <div class="text-[10px] text-slate-500 mt-0.5">Output sales value</div>
             </div>
 
             <!-- Total Taxes -->
-            <div class="bg-albion-card border border-albion-border rounded-xl p-4 shadow-sm relative overflow-hidden">
+            <div class="bg-albion-card border border-albion-border rounded-xl p-4 shadow-sm relative overflow-hidden transition-all duration-200 hover:border-amber-500/30">
                 <div class="text-xs font-medium text-slate-400 uppercase tracking-wider mb-1 flex items-center justify-between">
                     Market Taxes
                     <i data-lucide="receipt" class="w-4 h-4 text-amber-400"></i>
                 </div>
-                <div id="summary-taxes" class="text-lg sm:text-xl font-bold text-amber-400">0 Silver</div>
+                <div id="summary-taxes" class="text-lg sm:text-xl font-bold text-amber-400 transition-all duration-200">0 Silver</div>
                 <div class="text-[10px] text-slate-500 mt-0.5">Total market fees</div>
             </div>
 
             <!-- Net Profit -->
-            <div class="bg-albion-card border border-albion-border rounded-xl p-4 shadow-sm col-span-2 md:col-span-1 relative overflow-hidden">
+            <div class="bg-albion-card border border-albion-border rounded-xl p-4 shadow-sm col-span-2 md:col-span-1 relative overflow-hidden transition-all duration-200 hover:border-albion-gold/40">
                 <div class="text-xs font-medium text-slate-400 uppercase tracking-wider mb-1 flex items-center justify-between">
                     Net Clear Profit
                     <i data-lucide="coins" class="w-4 h-4 text-albion-gold"></i>
                 </div>
-                <div id="summary-profit" class="text-lg sm:text-xl font-bold text-albion-gold">0 Silver</div>
+                <div id="summary-profit" class="text-lg sm:text-xl font-bold text-albion-gold transition-all duration-200">0 Silver</div>
                 <div class="text-[10px] text-slate-500 mt-0.5">Final net gain</div>
             </div>
 
             <!-- ROI -->
-            <div class="bg-albion-card border border-albion-border rounded-xl p-4 shadow-sm col-span-2 md:col-span-1 relative overflow-hidden">
+            <div class="bg-albion-card border border-albion-border rounded-xl p-4 shadow-sm col-span-2 md:col-span-1 relative overflow-hidden transition-all duration-200 hover:border-blue-500/30">
                 <div class="text-xs font-medium text-slate-400 uppercase tracking-wider mb-1 flex items-center justify-between">
                     Overall ROI
                     <i data-lucide="percent" class="w-4 h-4 text-blue-400"></i>
                 </div>
-                <div id="summary-roi" class="text-lg sm:text-xl font-bold text-blue-400">0.0%</div>
+                <div id="summary-roi" class="text-lg sm:text-xl font-bold text-blue-400 transition-all duration-200">0.0%</div>
                 <div class="text-[10px] text-slate-500 mt-0.5">Return on investment</div>
             </div>
         </section>
@@ -206,8 +268,8 @@
         <div id="empty-state" class="hidden text-center py-16 border-2 border-dashed border-albion-border rounded-xl bg-albion-card/30">
             <i data-lucide="package-open" class="w-12 h-12 text-slate-500 mx-auto mb-3"></i>
             <h3 class="text-lg font-medium text-slate-300">No Calculation Recipe Nodes Added</h3>
-            <p class="text-sm text-slate-500 max-w-md mx-auto mb-4">Create your crafting chain by adding recipe nodes. Drag cards over each other to connect them!</p>
-            <button onclick="addNewRecipeBlock()" class="bg-albion-gold hover:bg-albion-gold-hover text-slate-950 font-semibold px-4 py-2 rounded-lg text-sm inline-flex items-center gap-2 transition active:scale-95">
+            <p class="text-sm text-slate-500 max-w-md mx-auto mb-4">Create your crafting chain by adding recipe nodes. Drag cards over each other to connect them, and drag rows inside a card to reorder!</p>
+            <button onclick="addNewRecipeBlock()" class="bg-albion-gold hover:bg-albion-gold-hover text-slate-950 font-semibold px-4 py-2 rounded-lg text-sm inline-flex items-center gap-2 active:scale-95">
                 <i data-lucide="plus-circle" class="w-4 h-4"></i> Create First Recipe Node
             </button>
         </div>
@@ -215,7 +277,7 @@
 
     <!-- RRR Iteration Step Modal -->
     <div id="rrr-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
-        <div class="bg-albion-card border border-albion-border rounded-xl max-w-lg w-full p-6 shadow-2xl relative animate-fadeIn">
+        <div class="bg-albion-card border border-albion-border rounded-xl max-w-lg w-full p-6 shadow-2xl relative animate-popIn">
             <button onclick="closeRRRModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white">
                 <i data-lucide="x" class="w-5 h-5"></i>
             </button>
@@ -268,11 +330,16 @@
     <script>
         // Data State
         let recipeBlocks = [];
+        const STORAGE_KEY = 'albion_chain_data';
 
-        // Drag & Drop State
+        // Drag & Drop State - Cards
         let draggedBlockId = null;
         let currentDropTargetId = null;
         let dropAction = null; // 'connect' or 'reorder'
+
+        // Drag & Drop State - Fields (inside a recipe card)
+        let draggedFieldBlockId = null;
+        let draggedFieldId = null;
 
         // Presets
         const RRR_PRESETS = [
@@ -290,8 +357,15 @@
             { label: 'Custom (0%)', value: 0 }
         ];
 
+        // Default tax rate applied to all newly created tax fields
+        const DEFAULT_TAX_RATE = 10.5;
+
         function formatNumber(num) {
             return new Intl.NumberFormat('en-US', { maximumFractionDigits: 1 }).format(num || 0);
+        }
+
+        function formatInt(num) {
+            return new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(Math.max(0, Math.floor(num || 0)));
         }
 
         window.onload = function() {
@@ -304,6 +378,18 @@
             }
 
             window.addEventListener('resize', drawConnectorLines);
+
+            // Safety net: make sure the very latest edits (even ones still being
+            // typed / not yet blurred) are persisted before the tab actually closes.
+            window.addEventListener('beforeunload', persistCurrentState);
+            document.addEventListener('visibilitychange', function() {
+                if (document.visibilityState === 'hidden') {
+                    persistCurrentState();
+                }
+            });
+            // Belt-and-suspenders periodic autosave in case a browser skips the
+            // events above on mobile Safari / tab discard.
+            setInterval(persistCurrentState, 5000);
         };
 
         function initDefaultBlocks() {
@@ -326,7 +412,7 @@
                     fields: [
                         { id: 'f_2_1', type: 'rrr', name: 'T6 Plank Crafting', qty: 100, rrr: 36.7, price: 350, unitCraftedValue: 780 },
                         { id: 'f_2_2', type: 'station_fee', name: 'Refining Station Fee', feePer100Nutrition: 650, totalCrafts: 100, nutritionPerCraft: 8 },
-                        { id: 'f_2_3', type: 'tax', name: 'Market Sales Tax', rate: 6.5, applyToIncome: true }
+                        { id: 'f_2_3', type: 'tax', name: 'Market Sales Tax', rate: DEFAULT_TAX_RATE, applyToIncome: true }
                     ]
                 }
             ];
@@ -334,20 +420,64 @@
             renderAllBlocks();
         }
 
-        function saveToLocalStorage() {
-            localStorage.setItem('albion_chain_data', JSON.stringify(recipeBlocks));
-            calculateOverallTotals();
+        // Low-level, silent persistence (no re-render, no flash) - safe to call often.
+        function persistNow() {
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(recipeBlocks));
+                return true;
+            } catch (e) {
+                console.error('Storage error:', e);
+                return false;
+            }
+        }
+
+        // Reads whatever is currently typed into every input (even if not yet
+        // blurred/committed via onchange) back into the data model, then saves.
+        // Called on close/tab-hide/interval so nothing typed gets lost.
+        function persistCurrentState() {
+            syncDomToModel();
+            persistNow();
+        }
+
+        function syncDomToModel() {
+            document.querySelectorAll('[data-kind]').forEach(el => {
+                const blockId = el.dataset.block;
+                const key = el.dataset.key;
+                const kind = el.dataset.kind;
+                const block = recipeBlocks.find(b => b.id === blockId);
+                if (!block) return;
+
+                if (key === '__title__') {
+                    block.title = el.value;
+                    return;
+                }
+
+                const fieldId = el.dataset.field;
+                const field = block.fields.find(f => f.id === fieldId);
+                if (!field) return;
+
+                let value = el.value;
+                if (kind === 'int') value = Math.floor(parseFloat(value)) || 0;
+                else if (kind === 'float') value = parseFloat(value) || 0;
+                else if (kind === 'bool') value = value === 'true';
+                field[key] = value;
+            });
+        }
+
+        function saveToLocalStorage(skipFlash) {
+            persistNow();
+            calculateOverallTotals(skipFlash);
             drawConnectorLines();
         }
 
         function loadFromLocalStorage() {
-            const data = localStorage.getItem('albion_chain_data');
-            if (data) {
-                try {
+            try {
+                const data = localStorage.getItem(STORAGE_KEY);
+                if (data) {
                     recipeBlocks = JSON.parse(data);
-                } catch (e) {
-                    recipeBlocks = [];
                 }
+            } catch (e) {
+                recipeBlocks = [];
             }
         }
 
@@ -359,7 +489,7 @@
                 fields: [
                     { id: 'f_' + Date.now() + '_1', type: 'rrr', name: 'Crafted Item', qty: 50, rrr: 36.7, price: 500, unitCraftedValue: 1200 },
                     { id: 'f_' + Date.now() + '_2', type: 'station_fee', name: 'Crafting Station Tax', feePer100Nutrition: 750, totalCrafts: 50, nutritionPerCraft: 16 },
-                    { id: 'f_' + Date.now() + '_3', type: 'tax', name: 'Market Tax', rate: 6.5, applyToIncome: true }
+                    { id: 'f_' + Date.now() + '_3', type: 'tax', name: 'Market Tax', rate: DEFAULT_TAX_RATE, applyToIncome: true }
                 ]
             };
             recipeBlocks.push(newBlock);
@@ -381,8 +511,8 @@
             const block = recipeBlocks.find(b => b.id === blockId);
             if (block) {
                 block.parentId = null;
-                saveToLocalStorage();
-                renderAllBlocks();
+                rerenderSingleCard(blockId);
+                saveToLocalStorage(true);
             }
         }
 
@@ -390,7 +520,11 @@
             const block = recipeBlocks.find(b => b.id === blockId);
             if (block) {
                 block.title = newTitle;
-                saveToLocalStorage();
+                // Refresh any children's "Linked to: ..." badge that shows this title
+                recipeBlocks.forEach(child => {
+                    if (child.parentId === blockId) rerenderSingleCard(child.id);
+                });
+                saveToLocalStorage(true);
             }
         }
 
@@ -407,12 +541,12 @@
             } else if (type === 'station_fee') {
                 newField = { ...newField, name: 'Station Fee (per 100)', feePer100Nutrition: 600, totalCrafts: 50, nutritionPerCraft: 16 };
             } else if (type === 'tax') {
-                newField = { ...newField, name: 'Market Tax', rate: 6.5, applyToIncome: true };
+                newField = { ...newField, name: 'Market Tax', rate: DEFAULT_TAX_RATE, applyToIncome: true };
             }
 
             block.fields.push(newField);
+            rerenderSingleCard(blockId);
             saveToLocalStorage();
-            renderAllBlocks();
         }
 
         function removeField(blockId, fieldId) {
@@ -420,8 +554,8 @@
             if (!block) return;
 
             block.fields = block.fields.filter(f => f.id !== fieldId);
+            rerenderSingleCard(blockId);
             saveToLocalStorage();
-            renderAllBlocks();
         }
 
         function updateFieldData(blockId, fieldId, key, value) {
@@ -431,21 +565,28 @@
             const field = block.fields.find(f => f.id === fieldId);
             if (field) {
                 field[key] = value;
+                rerenderSingleCard(blockId);
                 saveToLocalStorage();
-                renderAllBlocks();
             }
         }
 
+        // Items can't exist as fractional units, so the total effective output
+        // (and everything derived from it) is always floored to a whole number.
         function calculateRRR(baseQty, rrrPercent) {
             const rate = (rrrPercent || 0) / 100;
-            if (rate >= 1 || rate < 0) return { totalQty: baseQty, bonusQty: 0, steps: [] };
-            
+            const flooredBase = Math.floor(baseQty || 0);
+
+            if (rate >= 1 || rate < 0) {
+                return { totalQty: flooredBase, bonusQty: 0, steps: [] };
+            }
+
             // Formula for recursive infinite return sum: Total Output = Base / (1 - RRR)
-            const totalQty = baseQty / (1 - rate);
-            const bonusQty = totalQty - baseQty;
+            const rawTotalQty = flooredBase / (1 - rate);
+            const totalQty = Math.floor(rawTotalQty);
+            const bonusQty = Math.max(0, totalQty - flooredBase);
 
             const steps = [];
-            let currentCraft = baseQty;
+            let currentCraft = flooredBase;
             let stepNum = 1;
 
             while (currentCraft >= 0.1 && stepNum <= 20) {
@@ -500,7 +641,7 @@
             return { totalCost, totalGrossIncome, totalTaxes, netProfit, roi };
         }
 
-        function calculateOverallTotals() {
+        function calculateOverallTotals(skipFlash) {
             let grandCost = 0;
             let grandRevenue = 0;
             let grandTaxes = 0;
@@ -521,20 +662,33 @@
             
             const profitElem = document.getElementById('summary-profit');
             profitElem.innerText = `${formatNumber(grandProfit)} Silver`;
-            profitElem.className = `text-lg sm:text-xl font-bold ${grandProfit >= 0 ? 'text-emerald-400' : 'text-red-400'}`;
+            profitElem.className = `text-lg sm:text-xl font-bold transition-all duration-200 ${grandProfit >= 0 ? 'text-emerald-400' : 'text-red-400'}`;
 
             document.getElementById('summary-roi').innerText = `${grandROI.toFixed(1)}%`;
+
+            if (!skipFlash) {
+                // Small "just updated" flash so recalculation feels alive
+                ['summary-costs', 'summary-revenue', 'summary-taxes', 'summary-profit', 'summary-roi'].forEach(id => {
+                    const el = document.getElementById(id);
+                    if (!el) return;
+                    el.classList.remove('flash-update');
+                    void el.offsetWidth; // force reflow to restart animation
+                    el.classList.add('flash-update');
+                });
+            }
         }
+
+        // ---------- CARD-LEVEL DRAG (connect / reorder recipe nodes) ----------
 
         function handleDragStart(e, blockId) {
             draggedBlockId = blockId;
-            e.target.classList.add('dragging-card');
+            e.currentTarget.classList.add('dragging-card');
             e.dataTransfer.effectAllowed = 'move';
             e.dataTransfer.setData('text/plain', blockId);
         }
 
         function handleDragEnd(e) {
-            e.target.classList.remove('dragging-card');
+            e.currentTarget.classList.remove('dragging-card');
             clearDropHighlights();
             draggedBlockId = null;
             currentDropTargetId = null;
@@ -543,7 +697,7 @@
 
         function handleDragOver(e, targetBlockId) {
             e.preventDefault();
-            if (draggedBlockId === targetBlockId) return;
+            if (!draggedBlockId || draggedBlockId === targetBlockId) return;
 
             const targetCard = document.getElementById(`card-${targetBlockId}`);
             if (!targetCard) return;
@@ -559,7 +713,7 @@
                 currentDropTargetId = targetBlockId;
                 dropAction = 'reorder';
             } else {
-                targetCard.classList.add('drop-target-connect');
+                targetCard.classList.add('drop-target-connect', 'animate-pulseGlow');
                 currentDropTargetId = targetBlockId;
                 dropAction = 'connect';
             }
@@ -568,7 +722,7 @@
         function handleDragLeave(e, targetBlockId) {
             const targetCard = document.getElementById(`card-${targetBlockId}`);
             if (targetCard) {
-                targetCard.classList.remove('drop-target-connect', 'drop-target-reorder');
+                targetCard.classList.remove('drop-target-connect', 'drop-target-reorder', 'animate-pulseGlow');
             }
         }
 
@@ -584,6 +738,10 @@
                     const block = recipeBlocks.find(b => b.id === draggedBlockId);
                     if (block) {
                         block.parentId = targetBlockId;
+                        // Only the dragged card's own DOM needs to change (its "Linked to" badge) -
+                        // everything else stays untouched, so nothing else appears to "refresh".
+                        rerenderSingleCard(draggedBlockId);
+                        saveToLocalStorage(true);
                     }
                 } else {
                     alert("Cannot connect to a child node to prevent circular loops!");
@@ -595,11 +753,13 @@
                 if (draggedIdx !== -1 && targetIdx !== -1) {
                     const [moved] = recipeBlocks.splice(draggedIdx, 1);
                     recipeBlocks.splice(targetIdx, 0, moved);
+
+                    // Move the existing DOM nodes into the new order instead of
+                    // rebuilding them, so nothing flashes/re-animates.
+                    reorderCardsDom();
+                    saveToLocalStorage(true);
                 }
             }
-
-            saveToLocalStorage();
-            renderAllBlocks();
         }
 
         function isAncestor(ancestorId, childId) {
@@ -613,8 +773,102 @@
 
         function clearDropHighlights() {
             document.querySelectorAll('.drop-target-connect, .drop-target-reorder').forEach(el => {
-                el.classList.remove('drop-target-connect', 'drop-target-reorder');
+                el.classList.remove('drop-target-connect', 'drop-target-reorder', 'animate-pulseGlow');
             });
+        }
+
+        function reorderCardsDom() {
+            const container = document.getElementById('recipes-container');
+            if (!container) return;
+            recipeBlocks.forEach(block => {
+                const el = document.getElementById(`card-${block.id}`);
+                if (el) container.appendChild(el); // moves the existing node, doesn't recreate it
+            });
+        }
+
+        // ---------- FIELD-LEVEL DRAG (reorder rows inside a single recipe card) ----------
+
+        function handleFieldDragStart(e, blockId, fieldId) {
+            e.stopPropagation();
+            draggedFieldBlockId = blockId;
+            draggedFieldId = fieldId;
+            e.currentTarget.classList.add('dragging-field');
+            e.dataTransfer.effectAllowed = 'move';
+            e.dataTransfer.setData('text/plain', fieldId);
+        }
+
+        function handleFieldDragEnd(e) {
+            e.stopPropagation();
+            e.currentTarget.classList.remove('dragging-field');
+            clearFieldDropHighlights();
+            draggedFieldBlockId = null;
+            draggedFieldId = null;
+        }
+
+        function handleFieldDragOver(e, blockId, fieldId) {
+            e.preventDefault();
+            e.stopPropagation();
+            if (!draggedFieldId || draggedFieldBlockId !== blockId || draggedFieldId === fieldId) return;
+
+            clearFieldDropHighlights();
+            e.currentTarget.classList.add('drop-target-field');
+        }
+
+        function handleFieldDragLeave(e) {
+            e.stopPropagation();
+            e.currentTarget.classList.remove('drop-target-field');
+        }
+
+        function handleFieldDrop(e, blockId, fieldId) {
+            e.preventDefault();
+            e.stopPropagation();
+            clearFieldDropHighlights();
+
+            if (!draggedFieldId || draggedFieldBlockId !== blockId || draggedFieldId === fieldId) return;
+
+            const block = recipeBlocks.find(b => b.id === blockId);
+            if (!block) return;
+
+            const fromIdx = block.fields.findIndex(f => f.id === draggedFieldId);
+            const toIdx = block.fields.findIndex(f => f.id === fieldId);
+            if (fromIdx === -1 || toIdx === -1) return;
+
+            const [moved] = block.fields.splice(fromIdx, 1);
+            block.fields.splice(toIdx, 0, moved);
+
+            // Move the existing row nodes into place instead of rebuilding the card.
+            reorderFieldDom(blockId);
+            saveToLocalStorage(true);
+        }
+
+        function clearFieldDropHighlights() {
+            document.querySelectorAll('.drop-target-field').forEach(el => {
+                el.classList.remove('drop-target-field');
+            });
+        }
+
+        function reorderFieldDom(blockId) {
+            const block = recipeBlocks.find(b => b.id === blockId);
+            const anchor = document.getElementById(`actions-bar-${blockId}`);
+            if (!block || !anchor || !anchor.parentElement) return;
+            const parent = anchor.parentElement;
+            block.fields.forEach(field => {
+                const rowEl = document.getElementById(`field-${blockId}-${field.id}`);
+                if (rowEl) parent.insertBefore(rowEl, anchor);
+            });
+        }
+
+        // Replaces just one card's DOM subtree (used after edits/connects) so the
+        // rest of the list is never touched - avoids the "whole page refreshed" feel.
+        function rerenderSingleCard(blockId) {
+            const block = recipeBlocks.find(b => b.id === blockId);
+            const oldEl = document.getElementById(`card-${blockId}`);
+            if (!block || !oldEl) { renderAllBlocks(); return; }
+            const temp = document.createElement('div');
+            temp.innerHTML = renderBlockHTML(block).trim();
+            const newEl = temp.firstElementChild;
+            oldEl.replaceWith(newEl);
+            lucide.createIcons();
         }
 
         function drawConnectorLines() {
@@ -688,7 +942,7 @@
                 ondragover="handleDragOver(event, '${block.id}')"
                 ondragleave="handleDragLeave(event, '${block.id}')"
                 ondrop="handleDrop(event, '${block.id}')"
-                class="bg-albion-card border border-albion-border rounded-xl shadow-lg transition-all duration-200 animate-fadeIn relative overflow-hidden group">
+                class="recipe-card bg-albion-card border border-albion-border rounded-xl shadow-lg animate-fadeIn relative overflow-hidden group">
                 
                 <!-- Block Header -->
                 <div class="bg-slate-900/80 p-4 border-b border-albion-border flex flex-wrap items-center justify-between gap-3">
@@ -699,15 +953,16 @@
                         </div>
 
                         <div class="flex items-center gap-2 flex-1">
-                            <input type="text" value="${escapeHtml(block.title)}" 
+                            <input type="text" value="${escapeHtml(block.title)}" draggable="false"
+                                data-block="${block.id}" data-key="__title__" data-kind="text"
                                 onchange="updateBlockTitle('${block.id}', this.value)"
                                 class="bg-transparent border border-transparent hover:border-albion-border focus:border-albion-gold rounded px-2 py-1 font-bold text-base sm:text-lg text-white w-full max-w-md focus:outline-none focus:bg-slate-800/80 transition" 
                                 placeholder="Recipe Step Name...">
 
                             ${parentBlock ? `
-                                <span class="inline-flex items-center gap-1 text-[11px] bg-blue-500/10 text-blue-400 border border-blue-500/30 px-2 py-0.5 rounded-full">
+                                <span class="inline-flex items-center gap-1 text-[11px] bg-blue-500/10 text-blue-400 border border-blue-500/30 px-2 py-0.5 rounded-full animate-popIn">
                                     <i data-lucide="link" class="w-3 h-3"></i> Linked to: ${escapeHtml(parentBlock.title)}
-                                    <button onclick="disconnectBlock('${block.id}')" title="Disconnect Step" class="hover:text-red-400 ml-1">
+                                    <button onclick="disconnectBlock('${block.id}')" draggable="false" title="Disconnect Step" class="hover:text-red-400 ml-1">
                                         <i data-lucide="unlink" class="w-3 h-3"></i>
                                     </button>
                                 </span>
@@ -727,7 +982,7 @@
                             <span class="text-xs text-slate-400 block">ROI</span>
                             <span class="font-bold text-blue-400">${totals.roi.toFixed(1)}%</span>
                         </div>
-                        <button onclick="removeRecipeBlock('${block.id}')" title="Delete Card" class="p-2 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg transition ml-2">
+                        <button onclick="removeRecipeBlock('${block.id}')" draggable="false" title="Delete Card" class="p-2 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg ml-2">
                             <i data-lucide="trash-2" class="w-4 h-4"></i>
                         </button>
                     </div>
@@ -738,18 +993,18 @@
                     ${block.fields.map(field => renderFieldRowHTML(block.id, field)).join('')}
 
                     <!-- Action Bar for adding fields -->
-                    <div class="pt-3 border-t border-albion-border/60 flex flex-wrap gap-2 items-center justify-between">
+                    <div id="actions-bar-${block.id}" class="pt-3 border-t border-albion-border/60 flex flex-wrap gap-2 items-center justify-between">
                         <div class="flex flex-wrap gap-2">
-                            <button onclick="addFieldToBlock('${block.id}', 'rrr')" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-albion-border rounded-lg text-xs font-medium flex items-center gap-1.5 transition active:scale-95">
+                            <button onclick="addFieldToBlock('${block.id}', 'rrr')" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-albion-border rounded-lg text-xs font-medium flex items-center gap-1.5 active:scale-95">
                                 <i data-lucide="refresh-cw" class="w-3.5 h-3.5 text-blue-400"></i> RRR Output Item
                             </button>
-                            <button onclick="addFieldToBlock('${block.id}', 'station_fee')" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-albion-border rounded-lg text-xs font-medium flex items-center gap-1.5 transition active:scale-95">
+                            <button onclick="addFieldToBlock('${block.id}', 'station_fee')" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-albion-border rounded-lg text-xs font-medium flex items-center gap-1.5 active:scale-95">
                                 <i data-lucide="calculator" class="w-3.5 h-3.5 text-albion-gold"></i> Station Fee (100 Nutrition)
                             </button>
-                            <button onclick="addFieldToBlock('${block.id}', 'standard')" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-albion-border rounded-lg text-xs font-medium flex items-center gap-1.5 transition active:scale-95">
+                            <button onclick="addFieldToBlock('${block.id}', 'standard')" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-albion-border rounded-lg text-xs font-medium flex items-center gap-1.5 active:scale-95">
                                 <i data-lucide="plus" class="w-3.5 h-3.5 text-emerald-400"></i> Flat Ingredient / Expense
                             </button>
-                            <button onclick="addFieldToBlock('${block.id}', 'tax')" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-albion-border rounded-lg text-xs font-medium flex items-center gap-1.5 transition active:scale-95">
+                            <button onclick="addFieldToBlock('${block.id}', 'tax')" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-albion-border rounded-lg text-xs font-medium flex items-center gap-1.5 active:scale-95">
                                 <i data-lucide="percent" class="w-3.5 h-3.5 text-amber-400"></i> Market Tax
                             </button>
                         </div>
@@ -764,6 +1019,21 @@
             `;
         }
 
+        function fieldDragAttrs(blockId, fieldId) {
+            return `draggable="true"
+                ondragstart="handleFieldDragStart(event, '${blockId}', '${fieldId}')"
+                ondragend="handleFieldDragEnd(event)"
+                ondragover="handleFieldDragOver(event, '${blockId}', '${fieldId}')"
+                ondragleave="handleFieldDragLeave(event)"
+                ondrop="handleFieldDrop(event, '${blockId}', '${fieldId}')"`;
+        }
+
+        function fieldGrip(title) {
+            return `<div class="field-grip text-slate-500 hover:text-albion-gold flex-shrink-0" title="${title}">
+                <i data-lucide="grip-vertical" class="w-3.5 h-3.5"></i>
+            </div>`;
+        }
+
         function renderFieldRowHTML(blockId, field) {
             if (field.type === 'rrr') {
                 const rrrData = calculateRRR(field.qty || 0, field.rrr || 0);
@@ -772,32 +1042,36 @@
                 const netGainedPerCraft = rrrData.totalQty > 0 ? (grossValueGained - rawCost) / rrrData.totalQty : 0;
 
                 return `
-                <div class="bg-slate-900/50 p-3 rounded-lg border border-blue-500/30 flex flex-wrap items-center gap-2.5 sm:gap-3">
+                <div id="field-${blockId}-${field.id}" ${fieldDragAttrs(blockId, field.id)} class="field-row bg-slate-900/50 p-3 rounded-lg border border-blue-500/30 flex flex-wrap items-center gap-2.5 sm:gap-3">
+                    ${fieldGrip('Drag to reorder this row')}
                     <div class="p-1.5 bg-blue-500/10 text-blue-400 rounded">
                         <i data-lucide="refresh-cw" class="w-4 h-4"></i>
                     </div>
 
                     <!-- Item Name -->
-                    <input type="text" value="${escapeHtml(field.name)}" 
+                    <input type="text" value="${escapeHtml(field.name)}" draggable="false"
+                        data-block="${blockId}" data-field="${field.id}" data-key="name" data-kind="text"
                         onchange="updateFieldData('${blockId}', '${field.id}', 'name', this.value)"
                         class="bg-slate-800 border border-albion-border rounded px-2 py-1 text-xs text-slate-200 flex-1 min-w-[130px] focus:outline-none focus:border-blue-400" placeholder="Crafted Item Name">
 
                     <!-- Initial Craft Quantity -->
                     <div class="flex items-center gap-1">
                         <span class="text-[10px] text-slate-400 uppercase">Input Qty</span>
-                        <input type="number" value="${field.qty}" min="0"
-                            onchange="updateFieldData('${blockId}', '${field.id}', 'qty', parseFloat(this.value) || 0)"
+                        <input type="number" value="${field.qty}" min="0" step="1" draggable="false"
+                            data-block="${blockId}" data-field="${field.id}" data-key="qty" data-kind="int"
+                            onchange="updateFieldData('${blockId}', '${field.id}', 'qty', Math.floor(parseFloat(this.value)) || 0)"
                             class="bg-slate-800 border border-albion-border rounded px-2 py-1 text-xs text-slate-200 w-16 focus:outline-none focus:border-blue-400">
                     </div>
 
                     <!-- RRR % -->
                     <div class="flex items-center gap-1">
                         <span class="text-[10px] text-slate-400 uppercase">RRR %</span>
-                        <input type="number" value="${field.rrr}" step="0.1" min="0" max="99"
+                        <input type="number" value="${field.rrr}" step="0.1" min="0" max="99" draggable="false"
+                            data-block="${blockId}" data-field="${field.id}" data-key="rrr" data-kind="float"
                             onchange="updateFieldData('${blockId}', '${field.id}', 'rrr', parseFloat(this.value) || 0)"
                             class="bg-slate-800 border border-albion-border rounded px-2 py-1 text-xs text-blue-400 font-semibold w-16 focus:outline-none focus:border-blue-400">
                         
-                        <select onchange="updateFieldData('${blockId}', '${field.id}', 'rrr', parseFloat(this.value))" 
+                        <select draggable="false" onchange="updateFieldData('${blockId}', '${field.id}', 'rrr', parseFloat(this.value))" 
                             class="bg-slate-800 border border-albion-border text-[11px] rounded px-1.5 py-1 text-slate-300 focus:outline-none">
                             <option value="" disabled selected>Preset...</option>
                             ${RRR_PRESETS.map(p => `<option value="${p.value}">${p.label}</option>`).join('')}
@@ -807,7 +1081,8 @@
                     <!-- Raw Ingredient Unit Cost -->
                     <div class="flex items-center gap-1">
                         <span class="text-[10px] text-slate-400 uppercase">Mat. Cost</span>
-                        <input type="number" value="${field.price}" min="0"
+                        <input type="number" value="${field.price}" min="0" draggable="false"
+                            data-block="${blockId}" data-field="${field.id}" data-key="price" data-kind="float"
                             onchange="updateFieldData('${blockId}', '${field.id}', 'price', parseFloat(this.value) || 0)"
                             class="bg-slate-800 border border-albion-border rounded px-2 py-1 text-xs text-slate-200 w-20 focus:outline-none focus:border-blue-400">
                     </div>
@@ -815,14 +1090,15 @@
                     <!-- 1 Crafted Item Market Value -->
                     <div class="flex items-center gap-1">
                         <span class="text-[10px] text-albion-gold uppercase font-semibold">1 Unit Sell</span>
-                        <input type="number" value="${field.unitCraftedValue}" min="0"
+                        <input type="number" value="${field.unitCraftedValue}" min="0" draggable="false"
+                            data-block="${blockId}" data-field="${field.id}" data-key="unitCraftedValue" data-kind="float"
                             onchange="updateFieldData('${blockId}', '${field.id}', 'unitCraftedValue', parseFloat(this.value) || 0)"
                             class="bg-slate-800 border border-albion-gold/40 rounded px-2 py-1 text-xs text-albion-gold font-semibold w-20 focus:outline-none focus:border-albion-gold">
                     </div>
 
-                    <!-- Computed Yield Badge -->
-                    <button onclick="openRRRModal(${field.qty || 0}, ${field.rrr || 0})" class="bg-blue-950/60 border border-blue-500/40 hover:border-blue-400 px-2.5 py-1 rounded text-xs flex items-center gap-1.5 text-blue-300 transition">
-                        <span>Total Output: <strong>${formatNumber(rrrData.totalQty)}</strong></span>
+                    <!-- Computed Yield Badge (always a whole item count) -->
+                    <button onclick="openRRRModal(${field.qty || 0}, ${field.rrr || 0})" draggable="false" class="bg-blue-950/60 border border-blue-500/40 hover:border-blue-400 px-2.5 py-1 rounded text-xs flex items-center gap-1.5 text-blue-300">
+                        <span>Total Output: <strong>${formatInt(rrrData.totalQty)}</strong></span>
                         <i data-lucide="info" class="w-3 h-3 text-blue-400"></i>
                     </button>
 
@@ -832,7 +1108,7 @@
                         <div class="text-[10px] text-slate-400">Gained/Unit: ${formatNumber(netGainedPerCraft)}</div>
                     </div>
 
-                    <button onclick="removeField('${blockId}', '${field.id}')" class="text-slate-500 hover:text-red-400 p-1">
+                    <button onclick="removeField('${blockId}', '${field.id}')" draggable="false" class="text-slate-500 hover:text-red-400 p-1">
                         <i data-lucide="x" class="w-4 h-4"></i>
                     </button>
                 </div>
@@ -844,20 +1120,23 @@
                 const calculatedFee = (field.feePer100Nutrition || 0) * (totalNutrition / 100);
 
                 return `
-                <div class="bg-slate-900/50 p-3 rounded-lg border border-albion-gold/30 flex flex-wrap items-center gap-2.5 sm:gap-3">
+                <div id="field-${blockId}-${field.id}" ${fieldDragAttrs(blockId, field.id)} class="field-row bg-slate-900/50 p-3 rounded-lg border border-albion-gold/30 flex flex-wrap items-center gap-2.5 sm:gap-3">
+                    ${fieldGrip('Drag to reorder this row')}
                     <div class="p-1.5 bg-albion-gold/10 text-albion-gold rounded">
                         <i data-lucide="calculator" class="w-4 h-4"></i>
                     </div>
 
                     <!-- Label -->
-                    <input type="text" value="${escapeHtml(field.name)}" 
+                    <input type="text" value="${escapeHtml(field.name)}" draggable="false"
+                        data-block="${blockId}" data-field="${field.id}" data-key="name" data-kind="text"
                         onchange="updateFieldData('${blockId}', '${field.id}', 'name', this.value)"
                         class="bg-slate-800 border border-albion-border rounded px-2 py-1 text-xs text-slate-200 flex-1 min-w-[130px] focus:outline-none focus:border-albion-gold" placeholder="Station Tax Name">
 
                     <!-- Fee per 100 Nutrition -->
                     <div class="flex items-center gap-1">
                         <span class="text-[10px] text-slate-400 uppercase">Fee / 100 Nut.</span>
-                        <input type="number" value="${field.feePer100Nutrition}" min="0"
+                        <input type="number" value="${field.feePer100Nutrition}" min="0" draggable="false"
+                            data-block="${blockId}" data-field="${field.id}" data-key="feePer100Nutrition" data-kind="float"
                             onchange="updateFieldData('${blockId}', '${field.id}', 'feePer100Nutrition', parseFloat(this.value) || 0)"
                             class="bg-slate-800 border border-albion-border rounded px-2 py-1 text-xs text-albion-gold font-semibold w-20 focus:outline-none focus:border-albion-gold">
                     </div>
@@ -865,15 +1144,17 @@
                     <!-- Total Crafts -->
                     <div class="flex items-center gap-1">
                         <span class="text-[10px] text-slate-400 uppercase">Craft Count</span>
-                        <input type="number" value="${field.totalCrafts}" min="0"
-                            onchange="updateFieldData('${blockId}', '${field.id}', 'totalCrafts', parseFloat(this.value) || 0)"
+                        <input type="number" value="${field.totalCrafts}" min="0" step="1" draggable="false"
+                            data-block="${blockId}" data-field="${field.id}" data-key="totalCrafts" data-kind="int"
+                            onchange="updateFieldData('${blockId}', '${field.id}', 'totalCrafts', Math.floor(parseFloat(this.value)) || 0)"
                             class="bg-slate-800 border border-albion-border rounded px-2 py-1 text-xs text-slate-200 w-16 focus:outline-none focus:border-albion-gold">
                     </div>
 
                     <!-- Nutrition / Craft -->
                     <div class="flex items-center gap-1">
                         <span class="text-[10px] text-slate-400 uppercase">Nut / Craft</span>
-                        <input type="number" value="${field.nutritionPerCraft}" min="0"
+                        <input type="number" value="${field.nutritionPerCraft}" min="0" draggable="false"
+                            data-block="${blockId}" data-field="${field.id}" data-key="nutritionPerCraft" data-kind="float"
                             onchange="updateFieldData('${blockId}', '${field.id}', 'nutritionPerCraft', parseFloat(this.value) || 0)"
                             class="bg-slate-800 border border-albion-border rounded px-2 py-1 text-xs text-slate-200 w-16 focus:outline-none focus:border-albion-gold">
                     </div>
@@ -883,7 +1164,7 @@
                         -${formatNumber(calculatedFee)} Silver
                     </div>
 
-                    <button onclick="removeField('${blockId}', '${field.id}')" class="text-slate-500 hover:text-red-400 p-1">
+                    <button onclick="removeField('${blockId}', '${field.id}')" draggable="false" class="text-slate-500 hover:text-red-400 p-1">
                         <i data-lucide="x" class="w-4 h-4"></i>
                     </button>
                 </div>
@@ -893,16 +1174,20 @@
             if (field.type === 'standard') {
                 const subtotal = (field.qty || 0) * (field.price || 0);
                 return `
-                <div class="bg-slate-900/50 p-3 rounded-lg border border-albion-border/50 flex flex-wrap items-center gap-2.5 sm:gap-3">
+                <div id="field-${blockId}-${field.id}" ${fieldDragAttrs(blockId, field.id)} class="field-row bg-slate-900/50 p-3 rounded-lg border border-albion-border/50 flex flex-wrap items-center gap-2.5 sm:gap-3">
+                    ${fieldGrip('Drag to reorder this row')}
                     <div class="p-1.5 bg-slate-800 text-slate-400 rounded">
                         <i data-lucide="${field.isIncome ? 'arrow-down-left' : 'arrow-up-right'}" class="w-4 h-4 ${field.isIncome ? 'text-emerald-400' : 'text-red-400'}"></i>
                     </div>
 
-                    <input type="text" value="${escapeHtml(field.name)}" 
+                    <input type="text" value="${escapeHtml(field.name)}" draggable="false"
+                        data-block="${blockId}" data-field="${field.id}" data-key="name" data-kind="text"
                         onchange="updateFieldData('${blockId}', '${field.id}', 'name', this.value)"
                         class="bg-slate-800 border border-albion-border rounded px-2 py-1 text-xs text-slate-200 flex-1 min-w-[130px] focus:outline-none focus:border-slate-400" placeholder="Ingredient Name">
 
-                    <select onchange="updateFieldData('${blockId}', '${field.id}', 'isIncome', this.value === 'true')" 
+                    <select draggable="false"
+                        data-block="${blockId}" data-field="${field.id}" data-key="isIncome" data-kind="bool"
+                        onchange="updateFieldData('${blockId}', '${field.id}', 'isIncome', this.value === 'true')" 
                         class="bg-slate-800 border border-albion-border text-xs rounded px-2 py-1 text-slate-300 focus:outline-none">
                         <option value="false" ${!field.isIncome ? 'selected' : ''}>Expense (Cost)</option>
                         <option value="true" ${field.isIncome ? 'selected' : ''}>Income (Revenue)</option>
@@ -910,14 +1195,16 @@
 
                     <div class="flex items-center gap-1">
                         <span class="text-[10px] text-slate-400 uppercase">Qty</span>
-                        <input type="number" value="${field.qty}" min="0"
+                        <input type="number" value="${field.qty}" min="0" draggable="false"
+                            data-block="${blockId}" data-field="${field.id}" data-key="qty" data-kind="float"
                             onchange="updateFieldData('${blockId}', '${field.id}', 'qty', parseFloat(this.value) || 0)"
                             class="bg-slate-800 border border-albion-border rounded px-2 py-1 text-xs text-slate-200 w-16 focus:outline-none focus:border-slate-400">
                     </div>
 
                     <div class="flex items-center gap-1">
                         <span class="text-[10px] text-slate-400 uppercase">Price/Unit</span>
-                        <input type="number" value="${field.price}" min="0"
+                        <input type="number" value="${field.price}" min="0" draggable="false"
+                            data-block="${blockId}" data-field="${field.id}" data-key="price" data-kind="float"
                             onchange="updateFieldData('${blockId}', '${field.id}', 'price', parseFloat(this.value) || 0)"
                             class="bg-slate-800 border border-albion-border rounded px-2 py-1 text-xs text-slate-200 w-20 focus:outline-none focus:border-slate-400">
                     </div>
@@ -926,7 +1213,7 @@
                         ${field.isIncome ? '+' : '-'}${formatNumber(subtotal)}
                     </div>
 
-                    <button onclick="removeField('${blockId}', '${field.id}')" class="text-slate-500 hover:text-red-400 p-1">
+                    <button onclick="removeField('${blockId}', '${field.id}')" draggable="false" class="text-slate-500 hover:text-red-400 p-1">
                         <i data-lucide="x" class="w-4 h-4"></i>
                     </button>
                 </div>
@@ -939,29 +1226,34 @@
                 const taxAmount = field.applyToIncome ? (totals.totalGrossIncome * rate) : (totals.totalCost * rate);
 
                 return `
-                <div class="bg-slate-900/50 p-3 rounded-lg border border-amber-500/30 flex flex-wrap items-center gap-2.5 sm:gap-3">
+                <div id="field-${blockId}-${field.id}" ${fieldDragAttrs(blockId, field.id)} class="field-row bg-slate-900/50 p-3 rounded-lg border border-amber-500/30 flex flex-wrap items-center gap-2.5 sm:gap-3">
+                    ${fieldGrip('Drag to reorder this row')}
                     <div class="p-1.5 bg-amber-500/10 text-amber-400 rounded">
                         <i data-lucide="percent" class="w-4 h-4"></i>
                     </div>
 
-                    <input type="text" value="${escapeHtml(field.name)}" 
+                    <input type="text" value="${escapeHtml(field.name)}" draggable="false"
+                        data-block="${blockId}" data-field="${field.id}" data-key="name" data-kind="text"
                         onchange="updateFieldData('${blockId}', '${field.id}', 'name', this.value)"
                         class="bg-slate-800 border border-albion-border rounded px-2 py-1 text-xs text-slate-200 flex-1 min-w-[130px] focus:outline-none focus:border-amber-400" placeholder="Market Tax Name">
 
                     <div class="flex items-center gap-1">
                         <span class="text-[10px] text-slate-400 uppercase">Rate %</span>
-                        <input type="number" value="${field.rate}" step="0.1" min="0" max="100"
+                        <input type="number" value="${field.rate}" step="0.1" min="0" max="100" draggable="false"
+                            data-block="${blockId}" data-field="${field.id}" data-key="rate" data-kind="float"
                             onchange="updateFieldData('${blockId}', '${field.id}', 'rate', parseFloat(this.value) || 0)"
                             class="bg-slate-800 border border-albion-border rounded px-2 py-1 text-xs text-amber-400 font-semibold w-16 focus:outline-none focus:border-amber-400">
                     </div>
 
-                    <select onchange="updateFieldData('${blockId}', '${field.id}', 'rate', parseFloat(this.value))" 
+                    <select draggable="false" onchange="updateFieldData('${blockId}', '${field.id}', 'rate', parseFloat(this.value))" 
                         class="bg-slate-800 border border-albion-border text-[11px] rounded px-1.5 py-1 text-slate-300 focus:outline-none">
                         <option value="" disabled selected>Tax Preset...</option>
                         ${TAX_PRESETS.map(p => `<option value="${p.value}">${p.label}</option>`).join('')}
                     </select>
 
-                    <select onchange="updateFieldData('${blockId}', '${field.id}', 'applyToIncome', this.value === 'true')" 
+                    <select draggable="false"
+                        data-block="${blockId}" data-field="${field.id}" data-key="applyToIncome" data-kind="bool"
+                        onchange="updateFieldData('${blockId}', '${field.id}', 'applyToIncome', this.value === 'true')" 
                         class="bg-slate-800 border border-albion-border text-xs rounded px-2 py-1 text-slate-300 focus:outline-none">
                         <option value="true" ${field.applyToIncome ? 'selected' : ''}>Apply to Gross Revenue</option>
                         <option value="false" ${!field.applyToIncome ? 'selected' : ''}>Apply to Total Expenses</option>
@@ -971,7 +1263,7 @@
                         -${formatNumber(taxAmount)} Silver
                     </div>
 
-                    <button onclick="removeField('${blockId}', '${field.id}')" class="text-slate-500 hover:text-red-400 p-1">
+                    <button onclick="removeField('${blockId}', '${field.id}')" draggable="false" class="text-slate-500 hover:text-red-400 p-1">
                         <i data-lucide="x" class="w-4 h-4"></i>
                     </button>
                 </div>
@@ -984,10 +1276,10 @@
         function openRRRModal(qty, rrr) {
             const data = calculateRRR(qty, rrr);
 
-            document.getElementById('modal-initial-qty').innerText = formatNumber(qty);
+            document.getElementById('modal-initial-qty').innerText = formatInt(qty);
             document.getElementById('modal-rrr-rate').innerText = `${rrr}%`;
-            document.getElementById('modal-total-effective').innerText = formatNumber(data.totalQty);
-            document.getElementById('modal-bonus-items').innerText = `+${formatNumber(data.bonusQty)}`;
+            document.getElementById('modal-total-effective').innerText = formatInt(data.totalQty);
+            document.getElementById('modal-bonus-items').innerText = `+${formatInt(data.bonusQty)}`;
 
             const listContainer = document.getElementById('modal-step-list');
             listContainer.innerHTML = data.steps.map(s => `
