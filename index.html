@@ -58,7 +58,7 @@
         }
 
         input, select, textarea {
-            font-size: 16px !important; /* Prevents mobile zoom on focus */
+            font-size: 16px !important;
         }
         @media (min-width: 640px) {
             input, select, textarea {
@@ -89,7 +89,7 @@
         }
 
         .dragging-card {
-            opacity: 0.55;
+            opacity: 0.45;
             transform: scale(0.97);
             box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
         }
@@ -210,7 +210,7 @@
 
             <div class="flex items-center gap-2 flex-shrink-0 self-end sm:self-auto">
                 <button onclick="openNewTabModal()" class="bg-slate-800 hover:bg-slate-700 border border-albion-border text-slate-200 text-xs font-medium px-3 py-2 rounded-lg flex items-center gap-1.5">
-                    <i data-lucide="folder-plus" class="w-3.5 h-3.5 text-albion-gold"><span>New Tab</span></i>
+                    <i data-lucide="folder-plus" class="w-3.5 h-3.5 text-albion-gold"></i> New Tab
                 </button>
                 <button onclick="addNewRecipeBlock()" class="bg-albion-gold hover:bg-albion-gold-hover text-slate-950 font-semibold px-3.5 py-2 rounded-lg text-xs flex items-center gap-1.5 shadow-lg shadow-albion-gold/10">
                     <i data-lucide="plus-circle" class="w-4 h-4"></i> Add Node
@@ -387,12 +387,15 @@
 
         const DEFAULT_TAX_RATE = 10.5;
 
-        // Safe evaluation parser for equations like "8 * 100" or "50+50"
+        // Invisible ghost canvas image element used to hide the ugly browser default drag square
+        const invisibleDragImage = document.createElement('canvas');
+        invisibleDragImage.width = 1;
+        invisibleDragImage.height = 1;
+
         function evaluateExpression(input) {
             if (typeof input === 'number') return input;
             if (!input) return 0;
             const str = String(input).trim();
-            // Allow only safe characters numbers, basic math operators, periods, parentheses, and spaces
             if (/^[0-9+\-*/().\s]+$/.test(str)) {
                 try {
                     const result = Function(`'use strict'; return (${str})`)();
@@ -741,11 +744,9 @@
                 field[key] = rawVal;
             }
 
-            // Instantly update computations & values in real time without replacing elements
             saveToLocalStorage();
         }
 
-        // When input loses focus, update its text value to reflect evaluated math (e.g. "8 * 100" becomes "800")
         function handleInputBlur(el, blockId, fieldId, key, kind) {
             const blocks = getActiveBlocks();
             const block = blocks.find(b => b.id === blockId);
@@ -860,7 +861,6 @@
             blocks.forEach(block => {
                 const totals = calculateBlockTotals(block);
                 
-                // Update card header metrics smoothly without full re-rendering
                 const cardEl = document.getElementById(`card-${block.id}`);
                 if (!cardEl) return;
 
@@ -880,7 +880,6 @@
                                           Taxes: <span class="text-amber-400 font-medium">${formatNumber(totals.totalTaxes)}</span>`;
                 }
 
-                // Update individual row calculations dynamically
                 block.fields.forEach(field => {
                     const rowEl = document.getElementById(`field-row-${block.id}-${field.id}`);
                     if (!rowEl) return;
@@ -921,6 +920,11 @@
             e.currentTarget.classList.add('dragging-card');
             e.dataTransfer.effectAllowed = 'move';
             e.dataTransfer.setData('text/plain', blockId);
+            
+            // Hides the browser's default translucent snapshot box / square
+            if (e.dataTransfer.setDragImage) {
+                e.dataTransfer.setDragImage(invisibleDragImage, 0, 0);
+            }
         }
 
         function handleDragEnd(e) {
@@ -1027,6 +1031,11 @@
             e.currentTarget.classList.add('dragging-field');
             e.dataTransfer.effectAllowed = 'move';
             e.dataTransfer.setData('text/plain', fieldId);
+
+            // Hides the default ghost box for row items too
+            if (e.dataTransfer.setDragImage) {
+                e.dataTransfer.setDragImage(invisibleDragImage, 0, 0);
+            }
         }
 
         function handleFieldDragEnd(e) {
@@ -1116,8 +1125,8 @@
 
                         const startX = parentRect.left - containerRect.left + 24;
                         const startY = parentRect.bottom - containerRect.top;
-                        const endX = childCard.left - containerRect.left + 24;
-                        const endY = childCard.top - containerRect.top;
+                        const endX = childRect.left - containerRect.left + 24;
+                        const endY = childRect.top - containerRect.top;
 
                         const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
                         const controlY1 = startY + (endY - startY) / 2;
