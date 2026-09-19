@@ -48,10 +48,19 @@
     <style>
         body {
             font-family: 'Inter', sans-serif;
-            background-color: #0B0D13;
-            color: #E2E8F0;
             user-select: none;
         }
+        /* Default Dark Mode styles */
+        body.dark {
+            background-color: #0B0D13;
+            color: #E2E8F0;
+        }
+        /* Light Mode styles */
+        body.light {
+            background-color: #F8FAFC;
+            color: #1E293B;
+        }
+
         input, select, textarea {
             user-select: text;
         }
@@ -59,18 +68,21 @@
             width: 8px;
             height: 8px;
         }
-        ::-webkit-scrollbar-track {
-            background: #0B0D13;
-        }
+        body.dark ::-webkit-scrollbar-track { background: #0B0D13; }
+        body.light ::-webkit-scrollbar-track { background: #F8FAFC; }
+        
         ::-webkit-scrollbar-thumb {
             background: #232A3D;
             border-radius: 4px;
+        }
+        body.light ::-webkit-scrollbar-thumb {
+            background: #CBD5E1;
         }
         ::-webkit-scrollbar-thumb:hover {
             background: #3B82F6;
         }
 
-        /* Smooth base transitions so drag/reorder state changes animate instead of "jump" */
+        /* Smooth base transitions */
         .recipe-card {
             transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.2s ease, box-shadow 0.22s ease, border-color 0.2s ease;
             will-change: transform;
@@ -100,7 +112,7 @@
             transform: translateY(2px);
         }
 
-        /* Drag and Drop visual feedback - Field level (inside a recipe) */
+        /* Drag and Drop visual feedback - Field level */
         .dragging-field {
             opacity: 0.45;
             transform: scale(0.96) rotate(-0.6deg);
@@ -124,7 +136,6 @@
             transform: scale(1.15);
         }
 
-        /* Little "just updated" flash on totals */
         .flash-update {
             animation: flashGain 0.6s ease-out;
         }
@@ -153,48 +164,56 @@
             to { stroke-dashoffset: -1000; }
         }
 
-        /* Button micro-interactions */
         button {
             transition: transform 0.12s ease, background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
         }
         button:active {
             transform: scale(0.94);
         }
-
-        #autosave-indicator {
-            transition: opacity 0.3s ease;
-        }
     </style>
 </head>
-<body class="min-h-screen pb-20 relative">
+<body class="min-h-screen pb-20 relative dark">
 
-    <header class="border-b border-albion-border bg-albion-card/90 backdrop-blur sticky top-0 z-40">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
+    <header class="border-b border-albion-border bg-albion-card/90 dark:bg-albion-card/90 bg-white/90 backdrop-blur sticky top-0 z-40">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
             <div class="flex items-center space-x-3">
-                <div class="p-2 bg-albion-gold/10 border border-albion-gold/30 rounded-lg text-albion-gold">
+                <div class="p-2 bg-albion-gold/15 border border-albion-gold/30 rounded-lg text-albion-gold">
                     <i data-lucide="network" class="w-6 h-6"></i>
                 </div>
                 <div>
-                    <h1 class="font-bold text-lg text-white tracking-wide flex items-center gap-2">
+                    <h1 class="font-bold text-lg tracking-wide flex items-center gap-2">
                         ALBION <span class="text-albion-gold">CHAIN</span> CALCULATOR
                     </h1>
                     <p class="text-xs text-slate-400 flex items-center gap-1.5">
                         <span id="autosave-indicator" class="inline-flex items-center gap-1 text-emerald-400">
-                            <i data-lucide="check-circle-2" class="w-3 h-3"></i> Autosaved in this browser
+                            <i data-lucide="check-circle-2" class="w-3 h-3"></i> Autosaved
                         </span>
                     </p>
                 </div>
             </div>
 
-            <div class="flex items-center space-x-2 sm:space-x-3">
-                <button onclick="addNewRecipeBlock()" class="bg-albion-gold hover:bg-albion-gold-hover text-slate-950 font-semibold px-3 py-1.5 sm:px-4 sm:py-2 rounded-lg text-sm flex items-center gap-1.5 shadow-lg shadow-albion-gold/10 active:scale-95">
-                    <i data-lucide="plus-circle" class="w-4 h-4"></i>
-                    <span class="hidden sm:inline">Add Recipe Node</span>
+            <!-- Search Bar for Nodes / Cards -->
+            <div class="flex-1 max-w-md hidden md:block">
+                <div class="relative">
+                    <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                        <i data-lucide="search" class="w-4 h-4"></i>
+                    </span>
+                    <input type="text" id="node-search-input" oninput="handleSearchInput(this.value)" 
+                        placeholder="Search recipe nodes or contents..." 
+                        class="w-full bg-slate-900/60 dark:bg-slate-900/60 bg-slate-100 border border-albion-border rounded-lg pl-9 pr-4 py-1.5 text-sm focus:outline-none focus:border-albion-gold transition">
+                </div>
+            </div>
+
+            <div class="flex items-center space-x-2">
+                <!-- Theme Toggle Button -->
+                <button onclick="toggleTheme()" title="Toggle Light/Dark Mode" class="p-2 bg-slate-800/50 hover:bg-slate-800 border border-albion-border rounded-lg text-slate-300 active:scale-95">
+                    <i data-lucide="sun" class="w-4 h-4 hidden dark:inline"></i>
+                    <i data-lucide="moon" class="w-4 h-4 inline dark:hidden"></i>
                 </button>
-                <button onclick="exportJSON()" title="Export JSON" class="p-2 bg-slate-800 hover:bg-slate-700 border border-albion-border text-slate-300 rounded-lg text-sm active:scale-95">
+                <button onclick="exportJSON()" title="Export JSON" class="p-2 bg-slate-800/50 hover:bg-slate-800 border border-albion-border text-slate-300 rounded-lg text-sm active:scale-95">
                     <i data-lucide="download" class="w-4 h-4"></i>
                 </button>
-                <button onclick="importJSON()" title="Import JSON" class="p-2 bg-slate-800 hover:bg-slate-700 border border-albion-border text-slate-300 rounded-lg text-sm active:scale-95">
+                <button onclick="importJSON()" title="Import JSON" class="p-2 bg-slate-800/50 hover:bg-slate-800 border border-albion-border text-slate-300 rounded-lg text-sm active:scale-95">
                     <i data-lucide="upload" class="w-4 h-4"></i>
                 </button>
                 <button onclick="resetData()" title="Reset All" class="p-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 rounded-lg text-sm active:scale-95">
@@ -205,12 +224,43 @@
     </header>
 
     <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6 relative">
+        
+        <!-- Tabs & Workspace Navigation Bar -->
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 border-b border-albion-border pb-4">
+            <!-- Tabs List Container -->
+            <div id="tabs-container" class="flex items-center gap-2 overflow-x-auto pb-1 max-w-full">
+                <!-- Tabs rendered dynamically -->
+            </div>
+
+            <!-- Action buttons for Workspace Tabs -->
+            <div class="flex items-center gap-2 flex-shrink-0">
+                <button onclick="openNewTabModal()" class="bg-slate-800 hover:bg-slate-700 border border-albion-border text-slate-200 text-xs font-medium px-3 py-2 rounded-lg flex items-center gap-1.5 active:scale-95">
+                    <i data-lucide="folder-plus" class="w-3.5 h-3.5 text-albion-gold"></i> New Workspace Tab
+                </button>
+                <button onclick="addNewRecipeBlock()" class="bg-albion-gold hover:bg-albion-gold-hover text-slate-950 font-semibold px-3.5 py-2 rounded-lg text-xs flex items-center gap-1.5 shadow-lg shadow-albion-gold/10 active:scale-95">
+                    <i data-lucide="plus-circle" class="w-4 h-4"></i> Add Recipe Node
+                </button>
+            </div>
+        </div>
+
+        <!-- Mobile Search Input Bar -->
+        <div class="mb-6 md:hidden">
+            <div class="relative">
+                <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
+                    <i data-lucide="search" class="w-4 h-4"></i>
+                </span>
+                <input type="text" id="node-search-mobile" oninput="handleSearchInput(this.value)" 
+                    placeholder="Search recipe nodes..." 
+                    class="w-full bg-slate-900/60 border border-albion-border rounded-lg pl-9 pr-4 py-2 text-sm focus:outline-none focus:border-albion-gold transition">
+            </div>
+        </div>
+
         <!-- SVG Container for visual connections -->
         <svg id="connector-canvas"></svg>
 
         <section class="grid grid-cols-2 md:grid-cols-5 gap-3 sm:gap-4 mb-8">
             <!-- Total Costs -->
-            <div class="bg-albion-card border border-albion-border rounded-xl p-4 shadow-sm relative overflow-hidden transition-all duration-200 hover:border-red-500/30">
+            <div class="bg-albion-card dark:bg-albion-card bg-white border border-albion-border rounded-xl p-4 shadow-sm relative overflow-hidden transition-all duration-200 hover:border-red-500/30">
                 <div class="text-xs font-medium text-slate-400 uppercase tracking-wider mb-1 flex items-center justify-between">
                     Total Costs
                     <i data-lucide="trending-down" class="w-4 h-4 text-red-400"></i>
@@ -220,7 +270,7 @@
             </div>
 
             <!-- Gross Income -->
-            <div class="bg-albion-card border border-albion-border rounded-xl p-4 shadow-sm relative overflow-hidden transition-all duration-200 hover:border-emerald-500/30">
+            <div class="bg-albion-card dark:bg-albion-card bg-white border border-albion-border rounded-xl p-4 shadow-sm relative overflow-hidden transition-all duration-200 hover:border-emerald-500/30">
                 <div class="text-xs font-medium text-slate-400 uppercase tracking-wider mb-1 flex items-center justify-between">
                     Gross Revenue
                     <i data-lucide="trending-up" class="w-4 h-4 text-emerald-400"></i>
@@ -230,7 +280,7 @@
             </div>
 
             <!-- Total Taxes -->
-            <div class="bg-albion-card border border-albion-border rounded-xl p-4 shadow-sm relative overflow-hidden transition-all duration-200 hover:border-amber-500/30">
+            <div class="bg-albion-card dark:bg-albion-card bg-white border border-albion-border rounded-xl p-4 shadow-sm relative overflow-hidden transition-all duration-200 hover:border-amber-500/30">
                 <div class="text-xs font-medium text-slate-400 uppercase tracking-wider mb-1 flex items-center justify-between">
                     Market Taxes
                     <i data-lucide="receipt" class="w-4 h-4 text-amber-400"></i>
@@ -240,7 +290,7 @@
             </div>
 
             <!-- Net Profit -->
-            <div class="bg-albion-card border border-albion-border rounded-xl p-4 shadow-sm col-span-2 md:col-span-1 relative overflow-hidden transition-all duration-200 hover:border-albion-gold/40">
+            <div class="bg-albion-card dark:bg-albion-card bg-white border border-albion-border rounded-xl p-4 shadow-sm col-span-2 md:col-span-1 relative overflow-hidden transition-all duration-200 hover:border-albion-gold/40">
                 <div class="text-xs font-medium text-slate-400 uppercase tracking-wider mb-1 flex items-center justify-between">
                     Net Clear Profit
                     <i data-lucide="coins" class="w-4 h-4 text-albion-gold"></i>
@@ -250,7 +300,7 @@
             </div>
 
             <!-- ROI -->
-            <div class="bg-albion-card border border-albion-border rounded-xl p-4 shadow-sm col-span-2 md:col-span-1 relative overflow-hidden transition-all duration-200 hover:border-blue-500/30">
+            <div class="bg-albion-card dark:bg-albion-card bg-white border border-albion-border rounded-xl p-4 shadow-sm col-span-2 md:col-span-1 relative overflow-hidden transition-all duration-200 hover:border-blue-500/30">
                 <div class="text-xs font-medium text-slate-400 uppercase tracking-wider mb-1 flex items-center justify-between">
                     Overall ROI
                     <i data-lucide="percent" class="w-4 h-4 text-blue-400"></i>
@@ -267,8 +317,8 @@
         <!-- Empty State Message -->
         <div id="empty-state" class="hidden text-center py-16 border-2 border-dashed border-albion-border rounded-xl bg-albion-card/30">
             <i data-lucide="package-open" class="w-12 h-12 text-slate-500 mx-auto mb-3"></i>
-            <h3 class="text-lg font-medium text-slate-300">No Calculation Recipe Nodes Added</h3>
-            <p class="text-sm text-slate-500 max-w-md mx-auto mb-4">Create your crafting chain by adding recipe nodes. Drag cards over each other to connect them, and drag rows inside a card to reorder!</p>
+            <h3 class="text-lg font-medium text-slate-300">No Calculation Recipe Nodes Found</h3>
+            <p id="empty-state-desc" class="text-sm text-slate-500 max-w-md mx-auto mb-4">Create your crafting chain by adding recipe nodes. Drag cards over each other to connect them!</p>
             <button onclick="addNewRecipeBlock()" class="bg-albion-gold hover:bg-albion-gold-hover text-slate-950 font-semibold px-4 py-2 rounded-lg text-sm inline-flex items-center gap-2 active:scale-95">
                 <i data-lucide="plus-circle" class="w-4 h-4"></i> Create First Recipe Node
             </button>
@@ -276,8 +326,8 @@
     </main>
 
     <!-- RRR Iteration Step Modal -->
-    <div id="rrr-modal" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
-        <div class="bg-albion-card border border-albion-border rounded-xl max-w-lg w-full p-6 shadow-2xl relative animate-popIn">
+    <div id="rrr-modal" class="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-albion-card dark:bg-albion-card bg-white border border-albion-border rounded-xl max-w-lg w-full p-6 shadow-2xl relative animate-popIn">
             <button onclick="closeRRRModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white">
                 <i data-lucide="x" class="w-5 h-5"></i>
             </button>
@@ -287,7 +337,7 @@
                     <i data-lucide="refresh-cw" class="w-5 h-5"></i>
                 </div>
                 <div>
-                    <h3 class="font-bold text-lg text-white">Resource Return Rate (RRR) Simulation</h3>
+                    <h3 class="font-bold text-lg">Resource Return Rate (RRR) Simulation</h3>
                     <p class="text-xs text-slate-400">Recursive item generation breakdown</p>
                 </div>
             </div>
@@ -295,7 +345,7 @@
             <div class="space-y-3 mb-6">
                 <div class="flex justify-between text-sm py-1 border-b border-albion-border">
                     <span class="text-slate-400">Base Starting Crafts:</span>
-                    <span id="modal-initial-qty" class="font-semibold text-white">0</span>
+                    <span id="modal-initial-qty" class="font-semibold">0</span>
                 </div>
                 <div class="flex justify-between text-sm py-1 border-b border-albion-border">
                     <span class="text-slate-400">Resource Return Rate (RRR %):</span>
@@ -324,24 +374,43 @@
         </div>
     </div>
 
+    <!-- Create Workspace Tab Modal -->
+    <div id="tab-modal" class="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-albion-card dark:bg-albion-card bg-white border border-albion-border rounded-xl max-w-sm w-full p-6 shadow-2xl relative animate-popIn">
+            <button onclick="closeNewTabModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white">
+                <i data-lucide="x" class="w-5 h-5"></i>
+            </button>
+            <h3 class="font-bold text-lg mb-3">Create Workspace Tab</h3>
+            <p class="text-xs text-slate-400 mb-4">Organize different crafting chains (e.g. Weapon Crafting, Armor, Refining).</p>
+            <input type="text" id="new-tab-name-input" placeholder="Tab Name..." class="w-full bg-slate-900 border border-albion-border rounded-lg px-3 py-2 text-sm text-white mb-4 focus:outline-none focus:border-albion-gold">
+            <div class="flex justify-end gap-2">
+                <button onclick="closeNewTabModal()" class="px-3 py-1.5 bg-slate-800 text-slate-300 text-xs rounded-lg font-medium">Cancel</button>
+                <button onclick="confirmCreateTab()" class="px-4 py-1.5 bg-albion-gold hover:bg-albion-gold-hover text-slate-950 text-xs rounded-lg font-semibold">Create Tab</button>
+            </div>
+        </div>
+    </div>
+
     <!-- Hidden Input for JSON Import -->
     <input type="file" id="json-import-input" accept=".json" class="hidden" onchange="handleJSONImport(event)">
 
     <script>
-        // Data State
-        let recipeBlocks = [];
-        const STORAGE_KEY = 'albion_chain_data';
+        // Multi-tab Data State structure:
+        // tabs = [ { id: 'tab_1', name: 'Main Chain', blocks: [...] }, ... ]
+        let workspaceTabs = [];
+        let activeTabId = null;
+        let searchQuery = '';
+        const STORAGE_KEY = 'albion_chain_multitab_data';
+        const THEME_STORAGE_KEY = 'albion_chain_theme';
 
         // Drag & Drop State - Cards
         let draggedBlockId = null;
         let currentDropTargetId = null;
-        let dropAction = null; // 'connect' or 'reorder'
+        let dropAction = null; 
 
-        // Drag & Drop State - Fields (inside a recipe card)
+        // Drag & Drop State - Fields
         let draggedFieldBlockId = null;
         let draggedFieldId = null;
 
-        // Presets
         const RRR_PRESETS = [
             { label: 'City + Focus (53.9%)', value: 53.9 },
             { label: 'City No Focus (36.7%)', value: 36.7 },
@@ -357,7 +426,6 @@
             { label: 'Custom (0%)', value: 0 }
         ];
 
-        // Default tax rate applied to all newly created tax fields
         const DEFAULT_TAX_RATE = 10.5;
 
         function formatNumber(num) {
@@ -369,61 +437,95 @@
         }
 
         window.onload = function() {
-            lucide.createIcons();
+            loadTheme();
             loadFromLocalStorage();
-            if (recipeBlocks.length === 0) {
-                initDefaultBlocks();
-            } else {
-                renderAllBlocks();
+
+            if (!workspaceTabs || workspaceTabs.length === 0) {
+                initDefaultTabs();
+            } else if (!activeTabId || !workspaceTabs.find(t => t.id === activeTabId)) {
+                activeTabId = workspaceTabs[0].id;
             }
 
-            window.addEventListener('resize', drawConnectorLines);
+            renderAll();
 
-            // Safety net: make sure the very latest edits (even ones still being
-            // typed / not yet blurred) are persisted before the tab actually closes.
+            window.addEventListener('resize', drawConnectorLines);
             window.addEventListener('beforeunload', persistCurrentState);
             document.addEventListener('visibilitychange', function() {
-                if (document.visibilityState === 'hidden') {
-                    persistCurrentState();
-                }
+                if (document.visibilityState === 'hidden') persistCurrentState();
             });
-            // Belt-and-suspenders periodic autosave in case a browser skips the
-            // events above on mobile Safari / tab discard.
             setInterval(persistCurrentState, 5000);
         };
 
-        function initDefaultBlocks() {
-            const rawLogId = 'block_' + Date.now() + '_1';
-            const plankId = 'block_' + Date.now() + '_2';
+        function toggleTheme() {
+            const isDark = document.body.classList.contains('dark');
+            setTheme(isDark ? 'light' : 'dark');
+        }
 
-            recipeBlocks = [
+        function setTheme(theme) {
+            if (theme === 'light') {
+                document.body.classList.remove('dark');
+                document.body.classList.add('light');
+                localStorage.setItem(THEME_STORAGE_KEY, 'light');
+            } else {
+                document.body.classList.remove('light');
+                document.body.classList.add('dark');
+                localStorage.setItem(THEME_STORAGE_KEY, 'dark');
+            }
+            lucide.createIcons();
+        }
+
+        function loadTheme() {
+            const savedTheme = localStorage.getItem(THEME_STORAGE_KEY) || 'dark';
+            setTheme(savedTheme);
+        }
+
+        function initDefaultTabs() {
+            const defaultBlockId1 = 'block_' + Date.now() + '_1';
+            const defaultBlockId2 = 'block_' + Date.now() + '_2';
+
+            workspaceTabs = [
                 {
-                    id: rawLogId,
-                    parentId: null,
-                    title: "1. Raw Log Harvest / Buying",
-                    fields: [
-                        { id: 'f_1_1', type: 'standard', name: 'T6 Raw Logs', qty: 100, price: 350, isIncome: false }
+                    id: 'tab_' + Date.now(),
+                    name: 'Weapons Crafting',
+                    blocks: [
+                        {
+                            id: defaultBlockId1,
+                            parentId: null,
+                            title: "1. Raw Materials & Logs",
+                            fields: [
+                                { id: 'f_1_1', type: 'standard', name: 'T6 Logs', qty: 100, price: 350, isIncome: false }
+                            ]
+                        },
+                        {
+                            id: defaultBlockId2,
+                            parentId: defaultBlockId1,
+                            title: "2. T6 Plank Refining Station",
+                            fields: [
+                                { id: 'f_2_1', type: 'rrr', name: 'T6 Planks', qty: 100, rrr: 36.7, price: 340, unitCraftedValue: 780 },
+                                { id: 'f_2_2', type: 'station_fee', name: 'Refining Tax', feePer100Nutrition: 650, totalCrafts: 100, nutritionPerCraft: 8 },
+                                { id: 'f_2_3', type: 'tax', name: 'Market Sales Tax', rate: DEFAULT_TAX_RATE, applyToIncome: true }
+                            ]
+                        }
                     ]
                 },
                 {
-                    id: plankId,
-                    parentId: rawLogId,
-                    title: "2. T6 Plank Refining Station",
-                    fields: [
-                        { id: 'f_2_1', type: 'rrr', name: 'T6 Plank Crafting', qty: 100, rrr: 36.7, price: 350, unitCraftedValue: 780 },
-                        { id: 'f_2_2', type: 'station_fee', name: 'Refining Station Fee', feePer100Nutrition: 650, totalCrafts: 100, nutritionPerCraft: 8 },
-                        { id: 'f_2_3', type: 'tax', name: 'Market Sales Tax', rate: DEFAULT_TAX_RATE, applyToIncome: true }
-                    ]
+                    id: 'tab_' + (Date.now() + 1),
+                    name: 'Armor & Cloth',
+                    blocks: []
                 }
             ];
+            activeTabId = workspaceTabs[0].id;
             saveToLocalStorage();
-            renderAllBlocks();
         }
 
-        // Low-level, silent persistence (no re-render, no flash) - safe to call often.
+        function getActiveBlocks() {
+            const tab = workspaceTabs.find(t => t.id === activeTabId);
+            return tab ? tab.blocks : [];
+        }
+
         function persistNow() {
             try {
-                localStorage.setItem(STORAGE_KEY, JSON.stringify(recipeBlocks));
+                localStorage.setItem(STORAGE_KEY, JSON.stringify({ workspaceTabs, activeTabId }));
                 return true;
             } catch (e) {
                 console.error('Storage error:', e);
@@ -431,20 +533,18 @@
             }
         }
 
-        // Reads whatever is currently typed into every input (even if not yet
-        // blurred/committed via onchange) back into the data model, then saves.
-        // Called on close/tab-hide/interval so nothing typed gets lost.
         function persistCurrentState() {
             syncDomToModel();
             persistNow();
         }
 
         function syncDomToModel() {
+            const activeBlocks = getActiveBlocks();
             document.querySelectorAll('[data-kind]').forEach(el => {
                 const blockId = el.dataset.block;
                 const key = el.dataset.key;
                 const kind = el.dataset.kind;
-                const block = recipeBlocks.find(b => b.id === blockId);
+                const block = activeBlocks.find(b => b.id === blockId);
                 if (!block) return;
 
                 if (key === '__title__') {
@@ -474,14 +574,123 @@
             try {
                 const data = localStorage.getItem(STORAGE_KEY);
                 if (data) {
-                    recipeBlocks = JSON.parse(data);
+                    const parsed = JSON.parse(data);
+                    if (parsed.workspaceTabs) {
+                        workspaceTabs = parsed.workspaceTabs;
+                        activeTabId = parsed.activeTabId;
+                    } else if (Array.isArray(parsed)) {
+                        // Migration fallback if old format was flat array
+                        workspaceTabs = [{ id: 'tab_legacy', name: 'Main Chain', blocks: parsed }];
+                        activeTabId = 'tab_legacy';
+                    }
                 }
             } catch (e) {
-                recipeBlocks = [];
+                workspaceTabs = [];
             }
         }
 
+        function renderAll() {
+            renderTabs();
+            renderAllBlocks();
+        }
+
+        // ---------- TAB MANAGEMENT ----------
+
+        function renderTabs() {
+            const container = document.getElementById('tabs-container');
+            if (!container) return;
+
+            container.innerHTML = workspaceTabs.map(tab => {
+                const isActive = tab.id === activeTabId;
+                return `
+                <div onclick="switchTab('${tab.id}')" 
+                    class="group flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold cursor-pointer transition flex-shrink-0 border ${isActive ? 'bg-albion-gold/15 text-albion-gold border-albion-gold/40 shadow-sm' : 'bg-albion-card/60 hover:bg-albion-card text-slate-400 border-albion-border'}">
+                    <i data-lucide="layers" class="w-3.5 h-3.5"></i>
+                    <span>${escapeHtml(tab.name)}</span>
+                    ${workspaceTabs.length > 1 ? `
+                        <span onclick="event.stopPropagation(); deleteTab('${tab.id}')" class="opacity-0 group-hover:opacity-100 hover:text-red-400 p-0.5 transition ml-1" title="Delete Tab">
+                            <i data-lucide="x" class="w-3 h-3"></i>
+                        </span>
+                    ` : ''}
+                </div>
+                `;
+            }).join('');
+            lucide.createIcons();
+        }
+
+        function switchTab(tabId) {
+            persistCurrentState();
+            activeTabId = tabId;
+            searchQuery = '';
+            const searchInput1 = document.getElementById('node-search-input');
+            const searchInput2 = document.getElementById('node-search-mobile');
+            if (searchInput1) searchInput1.value = '';
+            if (searchInput2) searchInput2.value = '';
+
+            persistNow();
+            renderAll();
+        }
+
+        function openNewTabModal() {
+            document.getElementById('new-tab-name-input').value = '';
+            document.getElementById('tab-modal').classList.remove('hidden');
+            setTimeout(() => document.getElementById('new-tab-name-input').focus(), 50);
+        }
+
+        function closeNewTabModal() {
+            document.getElementById('tab-modal').classList.add('hidden');
+        }
+
+        function confirmCreateTab() {
+            const nameInput = document.getElementById('new-tab-name-input');
+            const tabName = nameInput.value.trim() || `Workspace ${workspaceTabs.length + 1}`;
+            
+            const newTab = {
+                id: 'tab_' + Date.now(),
+                name: tabName,
+                blocks: []
+            };
+
+            workspaceTabs.push(newTab);
+            activeTabId = newTab.id;
+            closeNewTabModal();
+            saveToLocalStorage();
+            renderAll();
+        }
+
+        function deleteTab(tabId) {
+            if (workspaceTabs.length <= 1) {
+                alert("You must keep at least one workspace tab.");
+                return;
+            }
+            if (confirm("Delete this workspace tab and all its recipe nodes?")) {
+                workspaceTabs = workspaceTabs.filter(t => t.id !== tabId);
+                if (activeTabId === tabId) {
+                    activeTabId = workspaceTabs[0].id;
+                }
+                saveToLocalStorage();
+                renderAll();
+            }
+        }
+
+        // ---------- SEARCH FILTER ----------
+
+        function handleSearchInput(query) {
+            searchQuery = query.toLowerCase().trim();
+            // Sync search inputs if both exist
+            const val = query;
+            const s1 = document.getElementById('node-search-input');
+            const s2 = document.getElementById('node-search-mobile');
+            if (s1 && s1.value !== val) s1.value = val;
+            if (s2 && s2.value !== val) s2.value = val;
+
+            renderAllBlocks();
+        }
+
+        // ---------- NODE & FIELD ACTIONS ----------
+
         function addNewRecipeBlock(defaultTitle = "New Recipe Node") {
+            const blocks = getActiveBlocks();
             const newBlock = {
                 id: 'block_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
                 parentId: null,
@@ -492,23 +701,25 @@
                     { id: 'f_' + Date.now() + '_3', type: 'tax', name: 'Market Tax', rate: DEFAULT_TAX_RATE, applyToIncome: true }
                 ]
             };
-            recipeBlocks.push(newBlock);
+            blocks.push(newBlock);
             saveToLocalStorage();
             renderAllBlocks();
         }
 
         function removeRecipeBlock(blockId) {
-            // Unlink any children pointing to this block
-            recipeBlocks.forEach(b => {
+            const blocks = getActiveBlocks();
+            blocks.forEach(b => {
                 if (b.parentId === blockId) b.parentId = null;
             });
-            recipeBlocks = recipeBlocks.filter(b => b.id !== blockId);
+            const idx = blocks.findIndex(b => b.id === blockId);
+            if (idx !== -1) blocks.splice(idx, 1);
             saveToLocalStorage();
             renderAllBlocks();
         }
 
         function disconnectBlock(blockId) {
-            const block = recipeBlocks.find(b => b.id === blockId);
+            const blocks = getActiveBlocks();
+            const block = blocks.find(b => b.id === blockId);
             if (block) {
                 block.parentId = null;
                 rerenderSingleCard(blockId);
@@ -517,11 +728,11 @@
         }
 
         function updateBlockTitle(blockId, newTitle) {
-            const block = recipeBlocks.find(b => b.id === blockId);
+            const blocks = getActiveBlocks();
+            const block = blocks.find(b => b.id === blockId);
             if (block) {
                 block.title = newTitle;
-                // Refresh any children's "Linked to: ..." badge that shows this title
-                recipeBlocks.forEach(child => {
+                blocks.forEach(child => {
                     if (child.parentId === blockId) rerenderSingleCard(child.id);
                 });
                 saveToLocalStorage(true);
@@ -529,7 +740,8 @@
         }
 
         function addFieldToBlock(blockId, type) {
-            const block = recipeBlocks.find(b => b.id === blockId);
+            const blocks = getActiveBlocks();
+            const block = blocks.find(b => b.id === blockId);
             if (!block) return;
 
             let newField = { id: 'f_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4), type };
@@ -550,7 +762,8 @@
         }
 
         function removeField(blockId, fieldId) {
-            const block = recipeBlocks.find(b => b.id === blockId);
+            const blocks = getActiveBlocks();
+            const block = blocks.find(b => b.id === blockId);
             if (!block) return;
 
             block.fields = block.fields.filter(f => f.id !== fieldId);
@@ -559,7 +772,8 @@
         }
 
         function updateFieldData(blockId, fieldId, key, value) {
-            const block = recipeBlocks.find(b => b.id === blockId);
+            const blocks = getActiveBlocks();
+            const block = blocks.find(b => b.id === blockId);
             if (!block) return;
 
             const field = block.fields.find(f => f.id === fieldId);
@@ -570,8 +784,6 @@
             }
         }
 
-        // Items can't exist as fractional units, so the total effective output
-        // (and everything derived from it) is always floored to a whole number.
         function calculateRRR(baseQty, rrrPercent) {
             const rate = (rrrPercent || 0) / 100;
             const flooredBase = Math.floor(baseQty || 0);
@@ -580,7 +792,6 @@
                 return { totalQty: flooredBase, bonusQty: 0, steps: [] };
             }
 
-            // Formula for recursive infinite return sum: Total Output = Base / (1 - RRR)
             const rawTotalQty = flooredBase / (1 - rate);
             const totalQty = Math.floor(rawTotalQty);
             const bonusQty = Math.max(0, totalQty - flooredBase);
@@ -620,7 +831,6 @@
                     totalCost += rawMaterialCost;
                     totalGrossIncome += grossValueGained;
                 } else if (field.type === 'station_fee') {
-                    // Albion Station Fee Formula: (Fee per 100 Nutrition) * (Nutrition per Craft / 100) * Total Crafts
                     const totalNutrition = (field.nutritionPerCraft || 0) * (field.totalCrafts || 0);
                     const calculatedFee = (field.feePer100Nutrition || 0) * (totalNutrition / 100);
                     totalCost += calculatedFee;
@@ -642,11 +852,12 @@
         }
 
         function calculateOverallTotals(skipFlash) {
+            const blocks = getActiveBlocks();
             let grandCost = 0;
             let grandRevenue = 0;
             let grandTaxes = 0;
 
-            recipeBlocks.forEach(block => {
+            blocks.forEach(block => {
                 const totals = calculateBlockTotals(block);
                 grandCost += totals.totalCost;
                 grandRevenue += totals.totalGrossIncome;
@@ -667,18 +878,17 @@
             document.getElementById('summary-roi').innerText = `${grandROI.toFixed(1)}%`;
 
             if (!skipFlash) {
-                // Small "just updated" flash so recalculation feels alive
                 ['summary-costs', 'summary-revenue', 'summary-taxes', 'summary-profit', 'summary-roi'].forEach(id => {
                     const el = document.getElementById(id);
                     if (!el) return;
                     el.classList.remove('flash-update');
-                    void el.offsetWidth; // force reflow to restart animation
+                    void el.offsetWidth;
                     el.classList.add('flash-update');
                 });
             }
         }
 
-        // ---------- CARD-LEVEL DRAG (connect / reorder recipe nodes) ----------
+        // ---------- CARD-LEVEL DRAG & DROP ----------
 
         function handleDragStart(e, blockId) {
             draggedBlockId = blockId;
@@ -707,7 +917,6 @@
 
             clearDropHighlights();
 
-            // If dropped near top third -> Reorder; If dropped in middle/bottom -> Connect as Child
             if (offsetY < rect.height * 0.3) {
                 targetCard.classList.add('drop-target-reorder');
                 currentDropTargetId = targetBlockId;
@@ -731,15 +940,13 @@
             clearDropHighlights();
 
             if (!draggedBlockId || draggedBlockId === targetBlockId) return;
+            const blocks = getActiveBlocks();
 
             if (dropAction === 'connect') {
-                // Prevent circular connection loops
                 if (!isAncestor(draggedBlockId, targetBlockId)) {
-                    const block = recipeBlocks.find(b => b.id === draggedBlockId);
+                    const block = blocks.find(b => b.id === draggedBlockId);
                     if (block) {
                         block.parentId = targetBlockId;
-                        // Only the dragged card's own DOM needs to change (its "Linked to" badge) -
-                        // everything else stays untouched, so nothing else appears to "refresh".
                         rerenderSingleCard(draggedBlockId);
                         saveToLocalStorage(true);
                     }
@@ -747,15 +954,13 @@
                     alert("Cannot connect to a child node to prevent circular loops!");
                 }
             } else if (dropAction === 'reorder') {
-                const draggedIdx = recipeBlocks.findIndex(b => b.id === draggedBlockId);
-                const targetIdx = recipeBlocks.findIndex(b => b.id === targetBlockId);
+                const draggedIdx = blocks.findIndex(b => b.id === draggedBlockId);
+                const targetIdx = blocks.findIndex(b => b.id === targetBlockId);
 
                 if (draggedIdx !== -1 && targetIdx !== -1) {
-                    const [moved] = recipeBlocks.splice(draggedIdx, 1);
-                    recipeBlocks.splice(targetIdx, 0, moved);
+                    const [moved] = blocks.splice(draggedIdx, 1);
+                    blocks.splice(targetIdx, 0, moved);
 
-                    // Move the existing DOM nodes into the new order instead of
-                    // rebuilding them, so nothing flashes/re-animates.
                     reorderCardsDom();
                     saveToLocalStorage(true);
                 }
@@ -763,10 +968,11 @@
         }
 
         function isAncestor(ancestorId, childId) {
-            let current = recipeBlocks.find(b => b.id === childId);
+            const blocks = getActiveBlocks();
+            let current = blocks.find(b => b.id === childId);
             while (current && current.parentId) {
                 if (current.parentId === ancestorId) return true;
-                current = recipeBlocks.find(b => b.id === current.parentId);
+                current = blocks.find(b => b.id === current.parentId);
             }
             return false;
         }
@@ -779,14 +985,15 @@
 
         function reorderCardsDom() {
             const container = document.getElementById('recipes-container');
+            const blocks = getActiveBlocks();
             if (!container) return;
-            recipeBlocks.forEach(block => {
+            blocks.forEach(block => {
                 const el = document.getElementById(`card-${block.id}`);
-                if (el) container.appendChild(el); // moves the existing node, doesn't recreate it
+                if (el) container.appendChild(el);
             });
         }
 
-        // ---------- FIELD-LEVEL DRAG (reorder rows inside a single recipe card) ----------
+        // ---------- FIELD-LEVEL DRAG & DROP ----------
 
         function handleFieldDragStart(e, blockId, fieldId) {
             e.stopPropagation();
@@ -826,7 +1033,8 @@
 
             if (!draggedFieldId || draggedFieldBlockId !== blockId || draggedFieldId === fieldId) return;
 
-            const block = recipeBlocks.find(b => b.id === blockId);
+            const blocks = getActiveBlocks();
+            const block = blocks.find(b => b.id === blockId);
             if (!block) return;
 
             const fromIdx = block.fields.findIndex(f => f.id === draggedFieldId);
@@ -836,7 +1044,6 @@
             const [moved] = block.fields.splice(fromIdx, 1);
             block.fields.splice(toIdx, 0, moved);
 
-            // Move the existing row nodes into place instead of rebuilding the card.
             reorderFieldDom(blockId);
             saveToLocalStorage(true);
         }
@@ -848,7 +1055,8 @@
         }
 
         function reorderFieldDom(blockId) {
-            const block = recipeBlocks.find(b => b.id === blockId);
+            const blocks = getActiveBlocks();
+            const block = blocks.find(b => b.id === blockId);
             const anchor = document.getElementById(`actions-bar-${blockId}`);
             if (!block || !anchor || !anchor.parentElement) return;
             const parent = anchor.parentElement;
@@ -858,10 +1066,9 @@
             });
         }
 
-        // Replaces just one card's DOM subtree (used after edits/connects) so the
-        // rest of the list is never touched - avoids the "whole page refreshed" feel.
         function rerenderSingleCard(blockId) {
-            const block = recipeBlocks.find(b => b.id === blockId);
+            const blocks = getActiveBlocks();
+            const block = blocks.find(b => b.id === blockId);
             const oldEl = document.getElementById(`card-${blockId}`);
             if (!block || !oldEl) { renderAllBlocks(); return; }
             const temp = document.createElement('div');
@@ -883,8 +1090,9 @@
             svg.style.left = `${container.offsetLeft}px`;
 
             svg.innerHTML = '';
+            const blocks = getActiveBlocks();
 
-            recipeBlocks.forEach(block => {
+            blocks.forEach(block => {
                 if (block.parentId) {
                     const parentCard = document.getElementById(`card-${block.parentId}`);
                     const childCard = document.getElementById(`card-${block.id}`);
@@ -914,17 +1122,38 @@
         function renderAllBlocks() {
             const container = document.getElementById('recipes-container');
             const emptyState = document.getElementById('empty-state');
+            const emptyStateDesc = document.getElementById('empty-state-desc');
+            const blocks = getActiveBlocks();
 
-            if (recipeBlocks.length === 0) {
+            // Filter blocks based on search query
+            const filteredBlocks = blocks.filter(block => {
+                if (!searchQuery) return true;
+                // Match title or any field name inside the card
+                const matchesTitle = block.title.toLowerCase().includes(searchQuery);
+                const matchesField = block.fields.some(f => (f.name || '').toLowerCase().includes(searchQuery));
+                return matchesTitle || matchesField;
+            });
+
+            if (blocks.length === 0) {
                 container.innerHTML = '';
                 emptyState.classList.remove('hidden');
+                emptyStateDesc.innerText = "Create your crafting chain by adding recipe nodes. Drag cards over each other to connect them!";
+                calculateOverallTotals();
+                drawConnectorLines();
+                return;
+            }
+
+            if (filteredBlocks.length === 0) {
+                container.innerHTML = '';
+                emptyState.classList.remove('hidden');
+                emptyStateDesc.innerText = `No recipe nodes found matching "${searchQuery}".`;
                 calculateOverallTotals();
                 drawConnectorLines();
                 return;
             }
 
             emptyState.classList.add('hidden');
-            container.innerHTML = recipeBlocks.map(block => renderBlockHTML(block)).join('');
+            container.innerHTML = filteredBlocks.map(block => renderBlockHTML(block)).join('');
             lucide.createIcons();
             calculateOverallTotals();
             setTimeout(drawConnectorLines, 50);
@@ -932,7 +1161,8 @@
 
         function renderBlockHTML(block) {
             const totals = calculateBlockTotals(block);
-            const parentBlock = block.parentId ? recipeBlocks.find(b => b.id === block.parentId) : null;
+            const blocks = getActiveBlocks();
+            const parentBlock = block.parentId ? blocks.find(b => b.id === block.parentId) : null;
 
             return `
             <div id="card-${block.id}" 
@@ -942,13 +1172,13 @@
                 ondragover="handleDragOver(event, '${block.id}')"
                 ondragleave="handleDragLeave(event, '${block.id}')"
                 ondrop="handleDrop(event, '${block.id}')"
-                class="recipe-card bg-albion-card border border-albion-border rounded-xl shadow-lg animate-fadeIn relative overflow-hidden group">
+                class="recipe-card bg-albion-card dark:bg-albion-card bg-white border border-albion-border rounded-xl shadow-lg animate-fadeIn relative overflow-hidden group">
                 
                 <!-- Block Header -->
-                <div class="bg-slate-900/80 p-4 border-b border-albion-border flex flex-wrap items-center justify-between gap-3">
+                <div class="bg-slate-900/60 dark:bg-slate-900/60 bg-slate-100 p-4 border-b border-albion-border flex flex-wrap items-center justify-between gap-3">
                     <div class="flex items-center gap-3 flex-1 min-w-[220px]">
                         <!-- Drag Grip Handle -->
-                        <div class="cursor-grab active:cursor-grabbing text-slate-500 hover:text-albion-gold p-1 transition" title="Drag up/down to reorder, or drag onto another card to connect">
+                        <div class="cursor-grab active:cursor-grabbing text-slate-400 hover:text-albion-gold p-1 transition" title="Drag up/down to reorder, or drag onto another card to connect">
                             <i data-lucide="grip-vertical" class="w-5 h-5"></i>
                         </div>
 
@@ -956,7 +1186,7 @@
                             <input type="text" value="${escapeHtml(block.title)}" draggable="false"
                                 data-block="${block.id}" data-key="__title__" data-kind="text"
                                 onchange="updateBlockTitle('${block.id}', this.value)"
-                                class="bg-transparent border border-transparent hover:border-albion-border focus:border-albion-gold rounded px-2 py-1 font-bold text-base sm:text-lg text-white w-full max-w-md focus:outline-none focus:bg-slate-800/80 transition" 
+                                class="bg-transparent border border-transparent hover:border-albion-border focus:border-albion-gold rounded px-2 py-1 font-bold text-base sm:text-lg w-full max-w-md focus:outline-none focus:bg-slate-800/80 transition" 
                                 placeholder="Recipe Step Name...">
 
                             ${parentBlock ? `
@@ -995,23 +1225,24 @@
                     <!-- Action Bar for adding fields -->
                     <div id="actions-bar-${block.id}" class="pt-3 border-t border-albion-border/60 flex flex-wrap gap-2 items-center justify-between">
                         <div class="flex flex-wrap gap-2">
-                            <button onclick="addFieldToBlock('${block.id}', 'rrr')" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-albion-border rounded-lg text-xs font-medium flex items-center gap-1.5 active:scale-95">
+                            <button onclick="addFieldToBlock('${block.id}', 'rrr')" class="px-3 py-1.5 bg-slate-800/40 dark:bg-slate-800/40 bg-slate-200 hover:bg-slate-700 text-slate-200 dark:text-slate-200 text-slate-800 border border-albion-border rounded-lg text-xs font-medium flex items-center gap-1.5 active:scale-95">
                                 <i data-lucide="refresh-cw" class="w-3.5 h-3.5 text-blue-400"></i> RRR Output Item
                             </button>
-                            <button onclick="addFieldToBlock('${block.id}', 'station_fee')" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-albion-border rounded-lg text-xs font-medium flex items-center gap-1.5 active:scale-95">
+                            <button onclick="addFieldToBlock('${block.id}', 'station_fee')" class="px-3 py-1.5 bg-slate-800/40 dark:bg-slate-800/40 bg-slate-200 hover:bg-slate-700 text-slate-200 dark:text-slate-200 text-slate-800 border border-albion-border rounded-lg text-xs font-medium flex items-center gap-1.5 active:scale-95">
                                 <i data-lucide="calculator" class="w-3.5 h-3.5 text-albion-gold"></i> Station Fee (100 Nutrition)
                             </button>
-                            <button onclick="addFieldToBlock('${block.id}', 'standard')" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-albion-border rounded-lg text-xs font-medium flex items-center gap-1.5 active:scale-95">
-                                <i data-lucide="plus" class="w-3.5 h-3.5 text-emerald-400"></i> Flat Ingredient / Expense
+                            <button onclick="addFieldToBlock('${block.id}', 'standard')" class="px-3 py-1.5 bg-slate-800/40 dark:bg-slate-800/40 bg-slate-200 hover:bg-slate-700 text-slate-200 dark:text-slate-200 text-slate-800 border border-albion-border rounded-lg text-xs font-medium flex items-center gap-1.5 active:scale-95">
+                                <i data-lucide="plus" class="w-3.5 h-3.5 text-emerald-400"></i> Flat Expense / Income
                             </button>
-                            <button onclick="addFieldToBlock('${block.id}', 'tax')" class="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-albion-border rounded-lg text-xs font-medium flex items-center gap-1.5 active:scale-95">
+                            <button onclick="addFieldToBlock('${block.id}', 'tax')" class="px-3 py-1.5 bg-slate-800/40 dark:bg-slate-800/40 bg-slate-200 hover:bg-slate-700 text-slate-200 dark:text-slate-200 text-slate-800 border border-albion-border rounded-lg text-xs font-medium flex items-center gap-1.5 active:scale-95">
                                 <i data-lucide="percent" class="w-3.5 h-3.5 text-amber-400"></i> Market Tax
                             </button>
                         </div>
 
                         <div class="text-xs text-slate-400">
-                            Costs: <span class="text-slate-200 font-medium">${formatNumber(totals.totalCost)}</span> | 
-                            Revenue: <span class="text-emerald-400 font-medium">${formatNumber(totals.totalGrossIncome)}</span>
+                            Total Expenses: <span class="text-red-400 font-medium">${formatNumber(totals.totalCost)}</span> | 
+                            Revenue: <span class="text-emerald-400 font-medium">${formatNumber(totals.totalGrossIncome)}</span> |
+                            Taxes: <span class="text-amber-400 font-medium">${formatNumber(totals.totalTaxes)}</span>
                         </div>
                     </div>
                 </div>
@@ -1029,12 +1260,14 @@
         }
 
         function fieldGrip(title) {
-            return `<div class="field-grip text-slate-500 hover:text-albion-gold flex-shrink-0" title="${title}">
+            return `<div class="field-grip text-slate-400 hover:text-albion-gold flex-shrink-0" title="${title}">
                 <i data-lucide="grip-vertical" class="w-3.5 h-3.5"></i>
             </div>`;
         }
 
         function renderFieldRowHTML(blockId, field) {
+            const inputBgClass = "bg-slate-900/60 dark:bg-slate-900/60 bg-white border border-albion-border rounded px-2 py-1 text-xs";
+
             if (field.type === 'rrr') {
                 const rrrData = calculateRRR(field.qty || 0, field.rrr || 0);
                 const grossValueGained = rrrData.totalQty * (field.unitCraftedValue || 0);
@@ -1042,73 +1275,66 @@
                 const netGainedPerCraft = rrrData.totalQty > 0 ? (grossValueGained - rawCost) / rrrData.totalQty : 0;
 
                 return `
-                <div id="field-${blockId}-${field.id}" ${fieldDragAttrs(blockId, field.id)} class="field-row bg-slate-900/50 p-3 rounded-lg border border-blue-500/30 flex flex-wrap items-center gap-2.5 sm:gap-3">
+                <div id="field-${blockId}-${field.id}" ${fieldDragAttrs(blockId, field.id)} class="field-row bg-slate-900/30 dark:bg-slate-900/30 bg-slate-50 p-3 rounded-lg border border-blue-500/30 flex flex-wrap items-center gap-2.5 sm:gap-3">
                     ${fieldGrip('Drag to reorder this row')}
                     <div class="p-1.5 bg-blue-500/10 text-blue-400 rounded">
                         <i data-lucide="refresh-cw" class="w-4 h-4"></i>
                     </div>
 
-                    <!-- Item Name -->
                     <input type="text" value="${escapeHtml(field.name)}" draggable="false"
                         data-block="${blockId}" data-field="${field.id}" data-key="name" data-kind="text"
                         onchange="updateFieldData('${blockId}', '${field.id}', 'name', this.value)"
-                        class="bg-slate-800 border border-albion-border rounded px-2 py-1 text-xs text-slate-200 flex-1 min-w-[130px] focus:outline-none focus:border-blue-400" placeholder="Crafted Item Name">
+                        class="${inputBgClass} flex-1 min-w-[130px] focus:outline-none focus:border-blue-400" placeholder="Crafted Item Name">
 
-                    <!-- Initial Craft Quantity -->
                     <div class="flex items-center gap-1">
                         <span class="text-[10px] text-slate-400 uppercase">Input Qty</span>
                         <input type="number" value="${field.qty}" min="0" step="1" draggable="false"
                             data-block="${blockId}" data-field="${field.id}" data-key="qty" data-kind="int"
                             onchange="updateFieldData('${blockId}', '${field.id}', 'qty', Math.floor(parseFloat(this.value)) || 0)"
-                            class="bg-slate-800 border border-albion-border rounded px-2 py-1 text-xs text-slate-200 w-16 focus:outline-none focus:border-blue-400">
+                            class="${inputBgClass} w-16 focus:outline-none focus:border-blue-400">
                     </div>
 
-                    <!-- RRR % -->
                     <div class="flex items-center gap-1">
                         <span class="text-[10px] text-slate-400 uppercase">RRR %</span>
                         <input type="number" value="${field.rrr}" step="0.1" min="0" max="99" draggable="false"
                             data-block="${blockId}" data-field="${field.id}" data-key="rrr" data-kind="float"
                             onchange="updateFieldData('${blockId}', '${field.id}', 'rrr', parseFloat(this.value) || 0)"
-                            class="bg-slate-800 border border-albion-border rounded px-2 py-1 text-xs text-blue-400 font-semibold w-16 focus:outline-none focus:border-blue-400">
+                            class="${inputBgClass} text-blue-400 font-semibold w-16 focus:outline-none focus:border-blue-400">
                         
                         <select draggable="false" onchange="updateFieldData('${blockId}', '${field.id}', 'rrr', parseFloat(this.value))" 
-                            class="bg-slate-800 border border-albion-border text-[11px] rounded px-1.5 py-1 text-slate-300 focus:outline-none">
+                            class="${inputBgClass} text-[11px] text-slate-300 focus:outline-none">
                             <option value="" disabled selected>Preset...</option>
                             ${RRR_PRESETS.map(p => `<option value="${p.value}">${p.label}</option>`).join('')}
                         </select>
                     </div>
 
-                    <!-- Raw Ingredient Unit Cost -->
                     <div class="flex items-center gap-1">
                         <span class="text-[10px] text-slate-400 uppercase">Mat. Cost</span>
                         <input type="number" value="${field.price}" min="0" draggable="false"
                             data-block="${blockId}" data-field="${field.id}" data-key="price" data-kind="float"
                             onchange="updateFieldData('${blockId}', '${field.id}', 'price', parseFloat(this.value) || 0)"
-                            class="bg-slate-800 border border-albion-border rounded px-2 py-1 text-xs text-slate-200 w-20 focus:outline-none focus:border-blue-400">
+                            class="${inputBgClass} w-20 focus:outline-none focus:border-blue-400">
                     </div>
 
-                    <!-- 1 Crafted Item Market Value -->
                     <div class="flex items-center gap-1">
                         <span class="text-[10px] text-albion-gold uppercase font-semibold">1 Unit Sell</span>
                         <input type="number" value="${field.unitCraftedValue}" min="0" draggable="false"
                             data-block="${blockId}" data-field="${field.id}" data-key="unitCraftedValue" data-kind="float"
                             onchange="updateFieldData('${blockId}', '${field.id}', 'unitCraftedValue', parseFloat(this.value) || 0)"
-                            class="bg-slate-800 border border-albion-gold/40 rounded px-2 py-1 text-xs text-albion-gold font-semibold w-20 focus:outline-none focus:border-albion-gold">
+                            class="bg-slate-900/60 dark:bg-slate-900/60 bg-white border border-albion-gold/40 rounded px-2 py-1 text-xs text-albion-gold font-semibold w-20 focus:outline-none focus:border-albion-gold">
                     </div>
 
-                    <!-- Computed Yield Badge (always a whole item count) -->
                     <button onclick="openRRRModal(${field.qty || 0}, ${field.rrr || 0})" draggable="false" class="bg-blue-950/60 border border-blue-500/40 hover:border-blue-400 px-2.5 py-1 rounded text-xs flex items-center gap-1.5 text-blue-300">
                         <span>Total Output: <strong>${formatInt(rrrData.totalQty)}</strong></span>
                         <i data-lucide="info" class="w-3 h-3 text-blue-400"></i>
                     </button>
 
-                    <!-- Calculated Total Gained -->
                     <div class="min-w-[110px] text-right font-medium text-xs">
                         <div class="text-emerald-400">+${formatNumber(grossValueGained)} Silver</div>
                         <div class="text-[10px] text-slate-400">Gained/Unit: ${formatNumber(netGainedPerCraft)}</div>
                     </div>
 
-                    <button onclick="removeField('${blockId}', '${field.id}')" draggable="false" class="text-slate-500 hover:text-red-400 p-1">
+                    <button onclick="removeField('${blockId}', '${field.id}')" draggable="false" class="text-slate-400 hover:text-red-400 p-1" title="Delete Row">
                         <i data-lucide="x" class="w-4 h-4"></i>
                     </button>
                 </div>
@@ -1120,51 +1346,46 @@
                 const calculatedFee = (field.feePer100Nutrition || 0) * (totalNutrition / 100);
 
                 return `
-                <div id="field-${blockId}-${field.id}" ${fieldDragAttrs(blockId, field.id)} class="field-row bg-slate-900/50 p-3 rounded-lg border border-albion-gold/30 flex flex-wrap items-center gap-2.5 sm:gap-3">
+                <div id="field-${blockId}-${field.id}" ${fieldDragAttrs(blockId, field.id)} class="field-row bg-slate-900/30 dark:bg-slate-900/30 bg-slate-50 p-3 rounded-lg border border-albion-gold/30 flex flex-wrap items-center gap-2.5 sm:gap-3">
                     ${fieldGrip('Drag to reorder this row')}
                     <div class="p-1.5 bg-albion-gold/10 text-albion-gold rounded">
                         <i data-lucide="calculator" class="w-4 h-4"></i>
                     </div>
 
-                    <!-- Label -->
                     <input type="text" value="${escapeHtml(field.name)}" draggable="false"
                         data-block="${blockId}" data-field="${field.id}" data-key="name" data-kind="text"
                         onchange="updateFieldData('${blockId}', '${field.id}', 'name', this.value)"
-                        class="bg-slate-800 border border-albion-border rounded px-2 py-1 text-xs text-slate-200 flex-1 min-w-[130px] focus:outline-none focus:border-albion-gold" placeholder="Station Tax Name">
+                        class="${inputBgClass} flex-1 min-w-[130px] focus:outline-none focus:border-albion-gold" placeholder="Station Tax Name">
 
-                    <!-- Fee per 100 Nutrition -->
                     <div class="flex items-center gap-1">
                         <span class="text-[10px] text-slate-400 uppercase">Fee / 100 Nut.</span>
                         <input type="number" value="${field.feePer100Nutrition}" min="0" draggable="false"
                             data-block="${blockId}" data-field="${field.id}" data-key="feePer100Nutrition" data-kind="float"
                             onchange="updateFieldData('${blockId}', '${field.id}', 'feePer100Nutrition', parseFloat(this.value) || 0)"
-                            class="bg-slate-800 border border-albion-border rounded px-2 py-1 text-xs text-albion-gold font-semibold w-20 focus:outline-none focus:border-albion-gold">
+                            class="${inputBgClass} text-albion-gold font-semibold w-20 focus:outline-none focus:border-albion-gold">
                     </div>
 
-                    <!-- Total Crafts -->
                     <div class="flex items-center gap-1">
                         <span class="text-[10px] text-slate-400 uppercase">Craft Count</span>
                         <input type="number" value="${field.totalCrafts}" min="0" step="1" draggable="false"
                             data-block="${blockId}" data-field="${field.id}" data-key="totalCrafts" data-kind="int"
                             onchange="updateFieldData('${blockId}', '${field.id}', 'totalCrafts', Math.floor(parseFloat(this.value)) || 0)"
-                            class="bg-slate-800 border border-albion-border rounded px-2 py-1 text-xs text-slate-200 w-16 focus:outline-none focus:border-albion-gold">
+                            class="${inputBgClass} w-16 focus:outline-none focus:border-albion-gold">
                     </div>
 
-                    <!-- Nutrition / Craft -->
                     <div class="flex items-center gap-1">
                         <span class="text-[10px] text-slate-400 uppercase">Nut / Craft</span>
                         <input type="number" value="${field.nutritionPerCraft}" min="0" draggable="false"
                             data-block="${blockId}" data-field="${field.id}" data-key="nutritionPerCraft" data-kind="float"
                             onchange="updateFieldData('${blockId}', '${field.id}', 'nutritionPerCraft', parseFloat(this.value) || 0)"
-                            class="bg-slate-800 border border-albion-border rounded px-2 py-1 text-xs text-slate-200 w-16 focus:outline-none focus:border-albion-gold">
+                            class="${inputBgClass} w-16 focus:outline-none focus:border-albion-gold">
                     </div>
 
-                    <!-- Calculated Fee -->
                     <div class="min-w-[100px] text-right font-medium text-xs text-red-400">
                         -${formatNumber(calculatedFee)} Silver
                     </div>
 
-                    <button onclick="removeField('${blockId}', '${field.id}')" draggable="false" class="text-slate-500 hover:text-red-400 p-1">
+                    <button onclick="removeField('${blockId}', '${field.id}')" draggable="false" class="text-slate-400 hover:text-red-400 p-1" title="Delete Row">
                         <i data-lucide="x" class="w-4 h-4"></i>
                     </button>
                 </div>
@@ -1174,7 +1395,7 @@
             if (field.type === 'standard') {
                 const subtotal = (field.qty || 0) * (field.price || 0);
                 return `
-                <div id="field-${blockId}-${field.id}" ${fieldDragAttrs(blockId, field.id)} class="field-row bg-slate-900/50 p-3 rounded-lg border border-albion-border/50 flex flex-wrap items-center gap-2.5 sm:gap-3">
+                <div id="field-${blockId}-${field.id}" ${fieldDragAttrs(blockId, field.id)} class="field-row bg-slate-900/30 dark:bg-slate-900/30 bg-slate-50 p-3 rounded-lg border border-albion-border/50 flex flex-wrap items-center gap-2.5 sm:gap-3">
                     ${fieldGrip('Drag to reorder this row')}
                     <div class="p-1.5 bg-slate-800 text-slate-400 rounded">
                         <i data-lucide="${field.isIncome ? 'arrow-down-left' : 'arrow-up-right'}" class="w-4 h-4 ${field.isIncome ? 'text-emerald-400' : 'text-red-400'}"></i>
@@ -1183,12 +1404,12 @@
                     <input type="text" value="${escapeHtml(field.name)}" draggable="false"
                         data-block="${blockId}" data-field="${field.id}" data-key="name" data-kind="text"
                         onchange="updateFieldData('${blockId}', '${field.id}', 'name', this.value)"
-                        class="bg-slate-800 border border-albion-border rounded px-2 py-1 text-xs text-slate-200 flex-1 min-w-[130px] focus:outline-none focus:border-slate-400" placeholder="Ingredient Name">
+                        class="${inputBgClass} flex-1 min-w-[130px] focus:outline-none focus:border-slate-400" placeholder="Expense Name">
 
                     <select draggable="false"
                         data-block="${blockId}" data-field="${field.id}" data-key="isIncome" data-kind="bool"
                         onchange="updateFieldData('${blockId}', '${field.id}', 'isIncome', this.value === 'true')" 
-                        class="bg-slate-800 border border-albion-border text-xs rounded px-2 py-1 text-slate-300 focus:outline-none">
+                        class="${inputBgClass} text-slate-300 focus:outline-none">
                         <option value="false" ${!field.isIncome ? 'selected' : ''}>Expense (Cost)</option>
                         <option value="true" ${field.isIncome ? 'selected' : ''}>Income (Revenue)</option>
                     </select>
@@ -1198,7 +1419,7 @@
                         <input type="number" value="${field.qty}" min="0" draggable="false"
                             data-block="${blockId}" data-field="${field.id}" data-key="qty" data-kind="float"
                             onchange="updateFieldData('${blockId}', '${field.id}', 'qty', parseFloat(this.value) || 0)"
-                            class="bg-slate-800 border border-albion-border rounded px-2 py-1 text-xs text-slate-200 w-16 focus:outline-none focus:border-slate-400">
+                            class="${inputBgClass} w-16 focus:outline-none focus:border-slate-400">
                     </div>
 
                     <div class="flex items-center gap-1">
@@ -1206,14 +1427,14 @@
                         <input type="number" value="${field.price}" min="0" draggable="false"
                             data-block="${blockId}" data-field="${field.id}" data-key="price" data-kind="float"
                             onchange="updateFieldData('${blockId}', '${field.id}', 'price', parseFloat(this.value) || 0)"
-                            class="bg-slate-800 border border-albion-border rounded px-2 py-1 text-xs text-slate-200 w-20 focus:outline-none focus:border-slate-400">
+                            class="${inputBgClass} w-20 focus:outline-none focus:border-slate-400">
                     </div>
 
                     <div class="min-w-[90px] text-right font-medium text-xs ${field.isIncome ? 'text-emerald-400' : 'text-slate-300'}">
                         ${field.isIncome ? '+' : '-'}${formatNumber(subtotal)}
                     </div>
 
-                    <button onclick="removeField('${blockId}', '${field.id}')" draggable="false" class="text-slate-500 hover:text-red-400 p-1">
+                    <button onclick="removeField('${blockId}', '${field.id}')" draggable="false" class="text-slate-400 hover:text-red-400 p-1" title="Delete Row">
                         <i data-lucide="x" class="w-4 h-4"></i>
                     </button>
                 </div>
@@ -1221,12 +1442,13 @@
             }
 
             if (field.type === 'tax') {
-                const totals = calculateBlockTotals(recipeBlocks.find(b => b.id === blockId));
+                const blocks = getActiveBlocks();
+                const totals = calculateBlockTotals(blocks.find(b => b.id === blockId));
                 const rate = (field.rate || 0) / 100;
                 const taxAmount = field.applyToIncome ? (totals.totalGrossIncome * rate) : (totals.totalCost * rate);
 
                 return `
-                <div id="field-${blockId}-${field.id}" ${fieldDragAttrs(blockId, field.id)} class="field-row bg-slate-900/50 p-3 rounded-lg border border-amber-500/30 flex flex-wrap items-center gap-2.5 sm:gap-3">
+                <div id="field-${blockId}-${field.id}" ${fieldDragAttrs(blockId, field.id)} class="field-row bg-slate-900/30 dark:bg-slate-900/30 bg-slate-50 p-3 rounded-lg border border-amber-500/30 flex flex-wrap items-center gap-2.5 sm:gap-3">
                     ${fieldGrip('Drag to reorder this row')}
                     <div class="p-1.5 bg-amber-500/10 text-amber-400 rounded">
                         <i data-lucide="percent" class="w-4 h-4"></i>
@@ -1235,18 +1457,18 @@
                     <input type="text" value="${escapeHtml(field.name)}" draggable="false"
                         data-block="${blockId}" data-field="${field.id}" data-key="name" data-kind="text"
                         onchange="updateFieldData('${blockId}', '${field.id}', 'name', this.value)"
-                        class="bg-slate-800 border border-albion-border rounded px-2 py-1 text-xs text-slate-200 flex-1 min-w-[130px] focus:outline-none focus:border-amber-400" placeholder="Market Tax Name">
+                        class="${inputBgClass} flex-1 min-w-[130px] focus:outline-none focus:border-amber-400" placeholder="Market Tax Name">
 
                     <div class="flex items-center gap-1">
                         <span class="text-[10px] text-slate-400 uppercase">Rate %</span>
                         <input type="number" value="${field.rate}" step="0.1" min="0" max="100" draggable="false"
                             data-block="${blockId}" data-field="${field.id}" data-key="rate" data-kind="float"
                             onchange="updateFieldData('${blockId}', '${field.id}', 'rate', parseFloat(this.value) || 0)"
-                            class="bg-slate-800 border border-albion-border rounded px-2 py-1 text-xs text-amber-400 font-semibold w-16 focus:outline-none focus:border-amber-400">
+                            class="${inputBgClass} text-amber-400 font-semibold w-16 focus:outline-none focus:border-amber-400">
                     </div>
 
                     <select draggable="false" onchange="updateFieldData('${blockId}', '${field.id}', 'rate', parseFloat(this.value))" 
-                        class="bg-slate-800 border border-albion-border text-[11px] rounded px-1.5 py-1 text-slate-300 focus:outline-none">
+                        class="${inputBgClass} text-[11px] text-slate-300 focus:outline-none">
                         <option value="" disabled selected>Tax Preset...</option>
                         ${TAX_PRESETS.map(p => `<option value="${p.value}">${p.label}</option>`).join('')}
                     </select>
@@ -1254,7 +1476,7 @@
                     <select draggable="false"
                         data-block="${blockId}" data-field="${field.id}" data-key="applyToIncome" data-kind="bool"
                         onchange="updateFieldData('${blockId}', '${field.id}', 'applyToIncome', this.value === 'true')" 
-                        class="bg-slate-800 border border-albion-border text-xs rounded px-2 py-1 text-slate-300 focus:outline-none">
+                        class="${inputBgClass} text-slate-300 focus:outline-none">
                         <option value="true" ${field.applyToIncome ? 'selected' : ''}>Apply to Gross Revenue</option>
                         <option value="false" ${!field.applyToIncome ? 'selected' : ''}>Apply to Total Expenses</option>
                     </select>
@@ -1263,7 +1485,7 @@
                         -${formatNumber(taxAmount)} Silver
                     </div>
 
-                    <button onclick="removeField('${blockId}', '${field.id}')" draggable="false" class="text-slate-500 hover:text-red-400 p-1">
+                    <button onclick="removeField('${blockId}', '${field.id}')" draggable="false" class="text-slate-400 hover:text-red-400 p-1" title="Delete Row">
                         <i data-lucide="x" class="w-4 h-4"></i>
                     </button>
                 </div>
@@ -1297,10 +1519,10 @@
         }
 
         function exportJSON() {
-            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(recipeBlocks, null, 2));
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify({ workspaceTabs, activeTabId }, null, 2));
             const downloadAnchor = document.createElement('a');
             downloadAnchor.setAttribute("href", dataStr);
-            downloadAnchor.setAttribute("download", `albion_crafting_chain_${new Date().toISOString().slice(0,10)}.json`);
+            downloadAnchor.setAttribute("download", `albion_crafting_workspaces_${new Date().toISOString().slice(0,10)}.json`);
             document.body.appendChild(downloadAnchor);
             downloadAnchor.click();
             downloadAnchor.remove();
@@ -1318,12 +1540,19 @@
             reader.onload = function(e) {
                 try {
                     const importedData = JSON.parse(e.target.result);
-                    if (Array.isArray(importedData)) {
-                        recipeBlocks = importedData;
+                    if (importedData.workspaceTabs && Array.isArray(importedData.workspaceTabs)) {
+                        workspaceTabs = importedData.workspaceTabs;
+                        activeTabId = importedData.activeTabId || workspaceTabs[0].id;
                         saveToLocalStorage();
-                        renderAllBlocks();
+                        renderAll();
+                    } else if (Array.isArray(importedData)) {
+                        // Old flat array format support
+                        workspaceTabs = [{ id: 'tab_' + Date.now(), name: 'Imported Chain', blocks: importedData }];
+                        activeTabId = workspaceTabs[0].id;
+                        saveToLocalStorage();
+                        renderAll();
                     } else {
-                        alert("Invalid file structure. Must be an array of recipe blocks.");
+                        alert("Invalid file structure.");
                     }
                 } catch (err) {
                     alert("Error parsing uploaded JSON file.");
@@ -1333,10 +1562,10 @@
         }
 
         function resetData() {
-            if (confirm("Reset all recipe cards and connections?")) {
-                recipeBlocks = [];
-                saveToLocalStorage();
-                renderAllBlocks();
+            if (confirm("Reset all tabs, recipe cards and connections in this calculator?")) {
+                workspaceTabs = [];
+                initDefaultTabs();
+                renderAll();
             }
         }
 
