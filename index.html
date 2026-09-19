@@ -48,6 +48,10 @@
             font-family: 'Inter', sans-serif;
             -webkit-tap-highlight-color: transparent;
             touch-action: manipulation;
+            user-select: none;
+        }
+        input, select, textarea {
+            user-select: text;
         }
         body.dark {
             background-color: #0B0D13;
@@ -86,28 +90,36 @@
             transition: box-shadow 0.2s ease, border-color 0.2s ease;
         }
 
-        /* Floating clone active card while moving */
+        /* Floating Custom Drag Clone */
         .floating-clone {
             position: fixed;
             pointer-events: none;
             z-index: 1000;
-            opacity: 0.85;
-            transform: scale(0.98) rotate(-1deg);
-            box-shadow: 0 25px 35px -10px rgba(0, 0, 0, 0.6);
+            opacity: 0.9;
+            transform: scale(0.97) rotate(-0.5deg);
+            box-shadow: 0 25px 40px -10px rgba(0, 0, 0, 0.65);
             width: var(--clone-width);
         }
 
+        .dragging-source {
+            opacity: 0.25;
+            border: 2px dashed #3B82F6 !important;
+        }
+
+        /* Drop target feedback highlights */
         .drop-target-connect {
             border-color: #3B82F6 !important;
             background-color: rgba(59, 130, 246, 0.08) !important;
         }
 
-        .drop-target-reorder {
-            border-top: 3px solid #D4AF37 !important;
+        .drop-target-reorder-top {
+            border-top: 4px solid #D4AF37 !important;
+            box-shadow: 0 -4px 12px rgba(212, 175, 55, 0.3);
         }
 
-        .dragging-source {
-            opacity: 0.35;
+        .drop-target-reorder-bottom {
+            border-bottom: 4px solid #D4AF37 !important;
+            box-shadow: 0 4px 12px rgba(212, 175, 55, 0.3);
         }
 
         .field-grip {
@@ -350,15 +362,15 @@
         let workspaceTabs = [];
         let activeTabId = null;
         let searchQuery = '';
-        const STORAGE_KEY = 'albion_chain_multitab_data_v3';
+        const STORAGE_KEY = 'albion_chain_multitab_data_v4';
         const THEME_STORAGE_KEY = 'albion_chain_theme';
 
-        // Custom Mouse Pointer Drag State (No browser ghost squares or no-entry signs!)
+        // Custom Mouse Pointer Drag State
         let isDraggingCard = false;
         let draggedBlockId = null;
         let dragStartX = 0, dragStartY = 0;
         let currentDropTargetId = null;
-        let dropAction = null;
+        let dropAction = null; // 'connect', 'reorder-top', 'reorder-bottom'
         let floatingClone = null;
 
         const RRR_PRESETS = [
@@ -420,7 +432,6 @@
             });
             setInterval(persistCurrentState, 5000);
 
-            // Setup Global Mouse Move/Up Handlers for Custom Drag System
             window.addEventListener('mousemove', handleCustomMouseMove);
             window.addEventListener('mouseup', handleCustomMouseUp);
         };
@@ -904,9 +915,8 @@
             });
         }
 
-        // ---------- CUSTOM SMOOTH MOUSE POINTER DRAG (NO GHOST / NO NO-ENTRY SIGNS) ----------
+        // ---------- CUSTOM CARD DRAG SYSTEM WITH POSITION LINE INDICATORS ----------
         function initCardDrag(e, blockId) {
-            // Don't start drag if clicking interactive fields/buttons inside header
             if (['INPUT', 'SELECT', 'BUTTON', 'I'].includes(e.target.tagName)) return;
             
             isDraggingCard = true;
@@ -943,7 +953,6 @@
                 }
             }
 
-            // Find element under cursor
             const elemBelow = document.elementFromPoint(e.clientX, e.clientY);
             const targetCard = elemBelow ? elemBelow.closest('.recipe-card') : null;
 
@@ -957,9 +966,13 @@
                 const offsetY = e.clientY - rect.top;
 
                 if (offsetY < rect.height * 0.3) {
-                    targetCard.classList.add('drop-target-reorder');
+                    targetCard.classList.add('drop-target-reorder-top');
                     currentDropTargetId = targetBlockId;
-                    dropAction = 'reorder';
+                    dropAction = 'reorder-top';
+                } else if (offsetY > rect.height * 0.7) {
+                    targetCard.classList.add('drop-target-reorder-bottom');
+                    currentDropTargetId = targetBlockId;
+                    dropAction = 'reorder-bottom';
                 } else {
                     targetCard.classList.add('drop-target-connect', 'animate-pulseGlow');
                     currentDropTargetId = targetBlockId;
@@ -996,13 +1009,19 @@
                     } else {
                         alert("Cannot connect to a child node to prevent circular loops!");
                     }
-                } else if (dropAction === 'reorder') {
+                } else if (dropAction === 'reorder-top' || dropAction === 'reorder-bottom') {
                     const draggedIdx = blocks.findIndex(b => b.id === draggedBlockId);
-                    const targetIdx = blocks.findIndex(b => b.id === currentDropTargetId);
+                    let targetIdx = blocks.findIndex(b => b.id === currentDropTargetId);
 
                     if (draggedIdx !== -1 && targetIdx !== -1) {
                         const [moved] = blocks.splice(draggedIdx, 1);
-                        blocks.splice(targetIdx, 0, moved);
+                        // Adjust index if shifting downwards
+                        if (draggedIdx < targetIdx && dropAction === 'reorder-bottom') {
+                            targetIdx = blocks.findIndex(b => b.id === currentDropTargetId);
+                        }
+                        const insertIdx = dropAction === 'reorder-bottom' ? targetIdx + 1 : targetIdx;
+                        blocks.splice(insertIdx, 0, moved);
+
                         reorderCardsDom();
                         saveToLocalStorage();
                     }
@@ -1026,8 +1045,8 @@
         }
 
         function clearDropHighlights() {
-            document.querySelectorAll('.drop-target-connect, .drop-target-reorder').forEach(el => {
-                el.classList.remove('drop-target-connect', 'drop-target-reorder', 'animate-pulseGlow');
+            document.querySelectorAll('.drop-target-connect, .drop-target-reorder-top, .drop-target-reorder-bottom').forEach(el => {
+                el.classList.remove('drop-target-connect', 'drop-target-reorder-top', 'drop-target-reorder-bottom', 'animate-pulseGlow');
             });
         }
 
@@ -1046,7 +1065,7 @@
             e.stopPropagation();
             draggedFieldBlockId = blockId;
             draggedFieldId = fieldId;
-            e.currentTarget.classList.add('dragging-field');
+            e.currentTarget.classList.add('opacity-40');
             e.dataTransfer.effectAllowed = 'move';
             e.dataTransfer.setData('text/plain', fieldId);
             const dummy = document.createElement('canvas');
@@ -1056,7 +1075,7 @@
 
         function handleFieldDragEnd(e) {
             e.stopPropagation();
-            e.currentTarget.classList.remove('dragging-field');
+            e.currentTarget.classList.remove('opacity-40');
             clearFieldDropHighlights();
             draggedFieldBlockId = null;
             draggedFieldId = null;
@@ -1067,12 +1086,12 @@
             e.stopPropagation();
             if (!draggedFieldId || draggedFieldBlockId !== blockId || draggedFieldId === fieldId) return;
             clearFieldDropHighlights();
-            e.currentTarget.classList.add('drop-target-field');
+            e.currentTarget.classList.add('border-albion-gold', 'bg-albion-gold/10');
         }
 
         function handleFieldDragLeave(e) {
             e.stopPropagation();
-            e.currentTarget.classList.remove('drop-target-field');
+            e.currentTarget.classList.remove('border-albion-gold', 'bg-albion-gold/10');
         }
 
         function handleFieldDrop(e, blockId, fieldId) {
@@ -1098,8 +1117,8 @@
         }
 
         function clearFieldDropHighlights() {
-            document.querySelectorAll('.drop-target-field').forEach(el => {
-                el.classList.remove('drop-target-field');
+            document.querySelectorAll('.field-row').forEach(el => {
+                el.classList.remove('border-albion-gold', 'bg-albion-gold/10');
             });
         }
 
@@ -1203,7 +1222,7 @@
             <div id="card-${block.id}" 
                 class="recipe-card bg-albion-card dark:bg-albion-card bg-white border border-albion-border rounded-xl shadow-lg relative overflow-hidden group">
                 
-                <!-- Block Header (Mousedown trigger for custom mouse dragging) -->
+                <!-- Block Header -->
                 <div onmousedown="initCardDrag(event, '${block.id}')"
                     class="bg-slate-900/60 dark:bg-slate-900/60 bg-slate-100 p-3 sm:p-4 border-b border-albion-border flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 cursor-move select-none">
                     <div class="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
