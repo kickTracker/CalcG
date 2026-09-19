@@ -1,5 +1,3 @@
---- START OF FILE Paste September 20, 2026 - 12:29AM ---
-
 <!DOCTYPE html>
 <html lang="en" class="dark">
 <head>
@@ -73,9 +71,8 @@
 
         /* Drag and Drop visual feedback - Card level */
         .dragging-card {
-            opacity: 0.45;
-            transform: scale(0.97) rotate(-1deg);
-            box-shadow: 0 20px 30px -8px rgba(0, 0, 0, 0.5);
+            opacity: 0.35;
+            transform: scale(0.97);
         }
 
         .drop-target-connect {
@@ -89,9 +86,9 @@
             transform: translateY(2px);
         }
 
-        /* Drag and Drop visual feedback - Field level (Line insertion indicator) */
+        /* Drag and Drop visual feedback - Field level */
         .dragging-field {
-            opacity: 0.45;
+            opacity: 0.35;
             transform: scale(0.96);
         }
 
@@ -357,10 +354,6 @@
         ];
 
         const DEFAULT_TAX_RATE = 10.5;
-
-        // Transparent 1x1 GIF to clear out the default browser drag ghost/no-entry sign
-        const transparentGhostImg = new Image();
-        transparentGhostImg.src = 'data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7';
 
         function evaluateExpression(input) {
             if (typeof input === 'number') return input;
@@ -884,15 +877,30 @@
             });
         }
 
-        // ---------- CARD-LEVEL DRAG & DROP ----------
+        // ---------- CARD-LEVEL DRAG & DROP WITH CUSTOM LIVE PREVIEW ----------
         function handleDragStart(e, blockId) {
             draggedBlockId = blockId;
-            e.currentTarget.classList.add('dragging-card');
+            const cardElement = e.currentTarget;
+            cardElement.classList.add('dragging-card');
             e.dataTransfer.effectAllowed = 'move';
             e.dataTransfer.setData('text/plain', blockId);
             
-            // Suppress browser default drag ghost (no-entry sign)
-            e.dataTransfer.setDragImage(transparentGhostImg, 0, 0);
+            // Generate a live fully interactive custom clone ghost preview attached right to the mouse cursor!
+            const ghost = cardElement.cloneNode(true);
+            ghost.style.width = `${cardElement.offsetWidth}px`;
+            ghost.style.position = 'absolute';
+            ghost.style.top = '-1000px';
+            ghost.style.left = '-1000px';
+            ghost.style.opacity = '0.9';
+            ghost.style.zIndex = '99999';
+            ghost.style.pointerEvents = 'none';
+            document.body.appendChild(ghost);
+
+            // Pass the cloned preview element as the custom drag feedback image
+            e.dataTransfer.setDragImage(ghost, 20, 20);
+            
+            // Clean up the temporary ghost from DOM right after drag starts
+            setTimeout(() => ghost.remove(), 0);
         }
 
         function handleDragEnd(e) {
@@ -992,17 +1000,29 @@
             });
         }
 
-        // ---------- FIELD-LEVEL DRAG & DROP ----------
+        // ---------- FIELD-LEVEL DRAG & DROP WITH CUSTOM LIVE PREVIEW ----------
         function handleFieldDragStart(e, blockId, fieldId) {
             e.stopPropagation();
             draggedFieldBlockId = blockId;
             draggedFieldId = fieldId;
-            e.currentTarget.classList.add('dragging-field');
+            const rowElement = e.currentTarget;
+            rowElement.classList.add('dragging-field');
             e.dataTransfer.effectAllowed = 'move';
             e.dataTransfer.setData('text/plain', fieldId);
 
-            // Suppress browser default drag ghost (no-entry sign)
-            e.dataTransfer.setDragImage(transparentGhostImg, 0, 0);
+            // Generate a live custom clone preview for fields as well
+            const ghost = rowElement.cloneNode(true);
+            ghost.style.width = `${rowElement.offsetWidth}px`;
+            ghost.style.position = 'absolute';
+            ghost.style.top = '-1000px';
+            ghost.style.left = '-1000px';
+            ghost.style.opacity = '0.9';
+            ghost.style.zIndex = '99999';
+            ghost.style.pointerEvents = 'none';
+            document.body.appendChild(ghost);
+
+            e.dataTransfer.setDragImage(ghost, 15, 15);
+            setTimeout(() => ghost.remove(), 0);
         }
 
         function handleFieldDragEnd(e) {
@@ -1020,7 +1040,6 @@
             if (!draggedFieldId || draggedFieldBlockId !== blockId || draggedFieldId === fieldId) return;
 
             clearFieldDropHighlights();
-            // Displays a precise line indicator above the hovered target field
             e.currentTarget.classList.add('drop-target-field');
         }
 
