@@ -2,7 +2,7 @@
 <html lang="en" class="dark">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Albion Online Node Crafting & Profit Calculator</title>
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -28,14 +28,12 @@
                     keyframes: {
                         fadeIn: { '0%': { opacity: '0', transform: 'translateY(8px)' }, '100%': { opacity: '1', transform: 'translateY(0)' } },
                         pulseGlow: { '0%, 100%': { borderColor: 'rgba(212, 175, 55, 0.4)' }, '50%': { borderColor: 'rgba(212, 175, 55, 0.9)' } },
-                        popIn: { '0%': { opacity: '0', transform: 'scale(0.9)' }, '100%': { opacity: '1', transform: 'scale(1)' } },
-                        flashGain: { '0%': { backgroundColor: 'rgba(16, 185, 129, 0.25)' }, '100%': { backgroundColor: 'transparent' } }
+                        popIn: { '0%': { opacity: '0', transform: 'scale(0.9)' }, '100%': { opacity: '1', transform: 'scale(1)' } }
                     },
                     animation: {
                         fadeIn: 'fadeIn 0.25s ease-out forwards',
                         pulseGlow: 'pulseGlow 1.4s infinite',
-                        popIn: 'popIn 0.2s ease-out forwards',
-                        flashGain: 'flashGain 0.6s ease-out'
+                        popIn: 'popIn 0.2s ease-out forwards'
                     }
                 }
             }
@@ -48,99 +46,79 @@
     <style>
         body {
             font-family: 'Inter', sans-serif;
-            user-select: none;
+            -webkit-tap-highlight-color: transparent;
         }
-        /* Default Dark Mode styles */
         body.dark {
             background-color: #0B0D13;
             color: #E2E8F0;
         }
-        /* Light Mode styles */
         body.light {
             background-color: #F8FAFC;
             color: #1E293B;
         }
 
         input, select, textarea {
-            user-select: text;
+            font-size: 16px !important; /* Prevents mobile zoom on focus */
         }
+        @media (min-width: 640px) {
+            input, select, textarea {
+                font-size: 0.875rem !important;
+            }
+        }
+
         ::-webkit-scrollbar {
-            width: 8px;
-            height: 8px;
+            width: 6px;
+            height: 6px;
         }
         body.dark ::-webkit-scrollbar-track { background: #0B0D13; }
         body.light ::-webkit-scrollbar-track { background: #F8FAFC; }
         
         ::-webkit-scrollbar-thumb {
             background: #232A3D;
-            border-radius: 4px;
+            border-radius: 3px;
         }
         body.light ::-webkit-scrollbar-thumb {
             background: #CBD5E1;
         }
-        ::-webkit-scrollbar-thumb:hover {
-            background: #3B82F6;
-        }
 
-        /* Smooth base transitions */
         .recipe-card {
-            transition: transform 0.22s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.2s ease, box-shadow 0.22s ease, border-color 0.2s ease;
-            will-change: transform;
+            transition: box-shadow 0.22s ease, border-color 0.2s ease;
         }
         .field-row {
-            transition: transform 0.18s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease, background-color 0.18s ease;
-            will-change: transform;
+            transition: border-color 0.18s ease, background-color 0.18s ease;
         }
 
-        /* Drag and Drop visual feedback - Card level */
         .dragging-card {
             opacity: 0.55;
-            transform: scale(0.97) rotate(-1.2deg);
-            box-shadow: 0 24px 30px -8px rgba(0, 0, 0, 0.55), 0 10px 12px -6px rgba(0, 0, 0, 0.5);
-            cursor: grabbing !important;
+            transform: scale(0.97);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5);
         }
 
         .drop-target-connect {
             border-color: #3B82F6 !important;
             background-color: rgba(59, 130, 246, 0.08) !important;
-            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.25), 0 0 20px rgba(59, 130, 246, 0.25);
-            transform: scale(1.012);
         }
 
         .drop-target-reorder {
             border-top: 3px solid #D4AF37 !important;
-            transform: translateY(2px);
         }
 
-        /* Drag and Drop visual feedback - Field level */
         .dragging-field {
             opacity: 0.45;
-            transform: scale(0.96) rotate(-0.6deg);
-            box-shadow: 0 14px 22px -8px rgba(0, 0, 0, 0.5);
-            cursor: grabbing !important;
         }
 
         .drop-target-field {
             border-color: #D4AF37 !important;
             background-color: rgba(212, 175, 55, 0.1) !important;
-            box-shadow: 0 0 0 2px rgba(212, 175, 55, 0.25);
-            transform: scale(1.012);
         }
 
         .field-grip {
             cursor: grab;
-            transition: color 0.15s ease, transform 0.15s ease;
         }
         .field-grip:active {
             cursor: grabbing;
-            transform: scale(1.15);
         }
 
-        .flash-update {
-            animation: flashGain 0.6s ease-out;
-        }
-
-        /* SVG Line Canvas Overlay */
         #connector-canvas {
             position: absolute;
             top: 0;
@@ -165,26 +143,26 @@
         }
 
         button {
-            transition: transform 0.12s ease, background-color 0.15s ease, border-color 0.15s ease, box-shadow 0.15s ease;
+            transition: transform 0.1s ease, background-color 0.15s ease;
         }
         button:active {
-            transform: scale(0.94);
+            transform: scale(0.96);
         }
     </style>
 </head>
 <body class="min-h-screen pb-20 relative dark">
 
     <header class="border-b border-albion-border bg-albion-card/90 dark:bg-albion-card/90 bg-white/90 backdrop-blur sticky top-0 z-40">
-        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between gap-4">
-            <div class="flex items-center space-x-3">
-                <div class="p-2 bg-albion-gold/15 border border-albion-gold/30 rounded-lg text-albion-gold">
-                    <i data-lucide="network" class="w-6 h-6"></i>
+        <div class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 h-14 sm:h-16 flex items-center justify-between gap-2 sm:gap-4">
+            <div class="flex items-center space-x-2 sm:space-x-3">
+                <div class="p-1.5 sm:p-2 bg-albion-gold/15 border border-albion-gold/30 rounded-lg text-albion-gold">
+                    <i data-lucide="network" class="w-5 h-5 sm:w-6 sm:h-6"></i>
                 </div>
                 <div>
-                    <h1 class="font-bold text-lg tracking-wide flex items-center gap-2">
-                        ALBION <span class="text-albion-gold">CHAIN</span> CALCULATOR
+                    <h1 class="font-bold text-sm sm:text-lg tracking-wide flex items-center gap-1.5">
+                        ALBION <span class="text-albion-gold">CHAIN</span>
                     </h1>
-                    <p class="text-xs text-slate-400 flex items-center gap-1.5">
+                    <p class="text-[10px] sm:text-xs text-slate-400 hidden xs:block">
                         <span id="autosave-indicator" class="inline-flex items-center gap-1 text-emerald-400">
                             <i data-lucide="check-circle-2" class="w-3 h-3"></i> Autosaved
                         </span>
@@ -193,141 +171,126 @@
             </div>
 
             <!-- Search Bar for Nodes / Cards -->
-            <div class="flex-1 max-w-md hidden md:block">
+            <div class="flex-1 max-w-xs sm:max-w-md mx-2">
                 <div class="relative">
-                    <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                        <i data-lucide="search" class="w-4 h-4"></i>
+                    <span class="absolute inset-y-0 left-0 pl-2.5 flex items-center pointer-events-none text-slate-400">
+                        <i data-lucide="search" class="w-3.5 h-3.5 sm:w-4 sm:h-4"></i>
                     </span>
                     <input type="text" id="node-search-input" oninput="handleSearchInput(this.value)" 
-                        placeholder="Search recipe nodes or contents..." 
-                        class="w-full bg-slate-900/60 dark:bg-slate-900/60 bg-slate-100 border border-albion-border rounded-lg pl-9 pr-4 py-1.5 text-sm focus:outline-none focus:border-albion-gold transition">
+                        placeholder="Search nodes..." 
+                        class="w-full bg-slate-900/60 dark:bg-slate-900/60 bg-slate-100 border border-albion-border rounded-lg pl-8 pr-3 py-1.5 text-xs sm:text-sm focus:outline-none focus:border-albion-gold transition">
                 </div>
             </div>
 
-            <div class="flex items-center space-x-2">
-                <!-- Theme Toggle Button -->
-                <button onclick="toggleTheme()" title="Toggle Light/Dark Mode" class="p-2 bg-slate-800/50 hover:bg-slate-800 border border-albion-border rounded-lg text-slate-300 active:scale-95">
+            <div class="flex items-center space-x-1 sm:space-x-2">
+                <button onclick="toggleTheme()" title="Toggle Theme" class="p-1.5 sm:p-2 bg-slate-800/50 hover:bg-slate-800 border border-albion-border rounded-lg text-slate-300">
                     <i data-lucide="sun" class="w-4 h-4 hidden dark:inline"></i>
                     <i data-lucide="moon" class="w-4 h-4 inline dark:hidden"></i>
                 </button>
-                <button onclick="exportJSON()" title="Export JSON" class="p-2 bg-slate-800/50 hover:bg-slate-800 border border-albion-border text-slate-300 rounded-lg text-sm active:scale-95">
+                <button onclick="exportJSON()" title="Export JSON" class="p-1.5 sm:p-2 bg-slate-800/50 hover:bg-slate-800 border border-albion-border text-slate-300 rounded-lg text-sm">
                     <i data-lucide="download" class="w-4 h-4"></i>
                 </button>
-                <button onclick="importJSON()" title="Import JSON" class="p-2 bg-slate-800/50 hover:bg-slate-800 border border-albion-border text-slate-300 rounded-lg text-sm active:scale-95">
+                <button onclick="importJSON()" title="Import JSON" class="p-1.5 sm:p-2 bg-slate-800/50 hover:bg-slate-800 border border-albion-border text-slate-300 rounded-lg text-sm">
                     <i data-lucide="upload" class="w-4 h-4"></i>
                 </button>
-                <button onclick="resetData()" title="Reset All" class="p-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 rounded-lg text-sm active:scale-95">
+                <button onclick="resetData()" title="Reset All" class="p-1.5 sm:p-2 bg-red-500/10 hover:bg-red-500/20 text-red-400 border border-red-500/30 rounded-lg text-sm">
                     <i data-lucide="rotate-ccw" class="w-4 h-4"></i>
                 </button>
             </div>
         </div>
     </header>
 
-    <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-6 relative">
+    <main class="max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 mt-4 sm:mt-6 relative">
         
         <!-- Tabs & Workspace Navigation Bar -->
-        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6 border-b border-albion-border pb-4">
-            <!-- Tabs List Container -->
-            <div id="tabs-container" class="flex items-center gap-2 overflow-x-auto pb-1 max-w-full">
+        <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4 sm:mb-6 border-b border-albion-border pb-3 sm:pb-4">
+            <div id="tabs-container" class="flex items-center gap-2 overflow-x-auto pb-1 max-w-full no-scrollbar">
                 <!-- Tabs rendered dynamically -->
             </div>
 
-            <!-- Action buttons for Workspace Tabs -->
-            <div class="flex items-center gap-2 flex-shrink-0">
-                <button onclick="openNewTabModal()" class="bg-slate-800 hover:bg-slate-700 border border-albion-border text-slate-200 text-xs font-medium px-3 py-2 rounded-lg flex items-center gap-1.5 active:scale-95">
-                    <i data-lucide="folder-plus" class="w-3.5 h-3.5 text-albion-gold"></i> New Workspace Tab
+            <div class="flex items-center gap-2 flex-shrink-0 self-end sm:self-auto">
+                <button onclick="openNewTabModal()" class="bg-slate-800 hover:bg-slate-700 border border-albion-border text-slate-200 text-xs font-medium px-3 py-2 rounded-lg flex items-center gap-1.5">
+                    <i data-lucide="folder-plus" class="w-3.5 h-3.5 text-albion-gold"><span>New Tab</span></i>
                 </button>
-                <button onclick="addNewRecipeBlock()" class="bg-albion-gold hover:bg-albion-gold-hover text-slate-950 font-semibold px-3.5 py-2 rounded-lg text-xs flex items-center gap-1.5 shadow-lg shadow-albion-gold/10 active:scale-95">
-                    <i data-lucide="plus-circle" class="w-4 h-4"></i> Add Recipe Node
+                <button onclick="addNewRecipeBlock()" class="bg-albion-gold hover:bg-albion-gold-hover text-slate-950 font-semibold px-3.5 py-2 rounded-lg text-xs flex items-center gap-1.5 shadow-lg shadow-albion-gold/10">
+                    <i data-lucide="plus-circle" class="w-4 h-4"></i> Add Node
                 </button>
-            </div>
-        </div>
-
-        <!-- Mobile Search Input Bar -->
-        <div class="mb-6 md:hidden">
-            <div class="relative">
-                <span class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                    <i data-lucide="search" class="w-4 h-4"></i>
-                </span>
-                <input type="text" id="node-search-mobile" oninput="handleSearchInput(this.value)" 
-                    placeholder="Search recipe nodes..." 
-                    class="w-full bg-slate-900/60 border border-albion-border rounded-lg pl-9 pr-4 py-2 text-sm focus:outline-none focus:border-albion-gold transition">
             </div>
         </div>
 
         <!-- SVG Container for visual connections -->
         <svg id="connector-canvas"></svg>
 
-        <section class="grid grid-cols-2 md:grid-cols-5 gap-3 sm:gap-4 mb-8">
+        <section class="grid grid-cols-2 lg:grid-cols-5 gap-2 sm:gap-4 mb-6 sm:mb-8">
             <!-- Total Costs -->
-            <div class="bg-albion-card dark:bg-albion-card bg-white border border-albion-border rounded-xl p-4 shadow-sm relative overflow-hidden transition-all duration-200 hover:border-red-500/30">
-                <div class="text-xs font-medium text-slate-400 uppercase tracking-wider mb-1 flex items-center justify-between">
+            <div class="bg-albion-card dark:bg-albion-card bg-white border border-albion-border rounded-xl p-3 sm:p-4 shadow-sm">
+                <div class="text-[10px] sm:text-xs font-medium text-slate-400 uppercase tracking-wider mb-1 flex items-center justify-between">
                     Total Costs
-                    <i data-lucide="trending-down" class="w-4 h-4 text-red-400"></i>
+                    <i data-lucide="trending-down" class="w-3.5 h-3.5 sm:w-4 sm:h-4 text-red-400"></i>
                 </div>
-                <div id="summary-costs" class="text-lg sm:text-xl font-bold text-red-400 transition-all duration-200">0 Silver</div>
-                <div class="text-[10px] text-slate-500 mt-0.5">Raw materials & station fees</div>
+                <div id="summary-costs" class="text-sm sm:text-xl font-bold text-red-400 truncate">0 Silver</div>
+                <div class="text-[9px] sm:text-[10px] text-slate-500 mt-0.5">Raw materials & fees</div>
             </div>
 
             <!-- Gross Income -->
-            <div class="bg-albion-card dark:bg-albion-card bg-white border border-albion-border rounded-xl p-4 shadow-sm relative overflow-hidden transition-all duration-200 hover:border-emerald-500/30">
-                <div class="text-xs font-medium text-slate-400 uppercase tracking-wider mb-1 flex items-center justify-between">
+            <div class="bg-albion-card dark:bg-albion-card bg-white border border-albion-border rounded-xl p-3 sm:p-4 shadow-sm">
+                <div class="text-[10px] sm:text-xs font-medium text-slate-400 uppercase tracking-wider mb-1 flex items-center justify-between">
                     Gross Revenue
-                    <i data-lucide="trending-up" class="w-4 h-4 text-emerald-400"></i>
+                    <i data-lucide="trending-up" class="w-3.5 h-3.5 sm:w-4 sm:h-4 text-emerald-400"></i>
                 </div>
-                <div id="summary-revenue" class="text-lg sm:text-xl font-bold text-emerald-400 transition-all duration-200">0 Silver</div>
-                <div class="text-[10px] text-slate-500 mt-0.5">Output sales value</div>
+                <div id="summary-revenue" class="text-sm sm:text-xl font-bold text-emerald-400 truncate">0 Silver</div>
+                <div class="text-[9px] sm:text-[10px] text-slate-500 mt-0.5">Output sales value</div>
             </div>
 
             <!-- Total Taxes -->
-            <div class="bg-albion-card dark:bg-albion-card bg-white border border-albion-border rounded-xl p-4 shadow-sm relative overflow-hidden transition-all duration-200 hover:border-amber-500/30">
-                <div class="text-xs font-medium text-slate-400 uppercase tracking-wider mb-1 flex items-center justify-between">
+            <div class="bg-albion-card dark:bg-albion-card bg-white border border-albion-border rounded-xl p-3 sm:p-4 shadow-sm">
+                <div class="text-[10px] sm:text-xs font-medium text-slate-400 uppercase tracking-wider mb-1 flex items-center justify-between">
                     Market Taxes
-                    <i data-lucide="receipt" class="w-4 h-4 text-amber-400"></i>
+                    <i data-lucide="receipt" class="w-3.5 h-3.5 sm:w-4 sm:h-4 text-amber-400"></i>
                 </div>
-                <div id="summary-taxes" class="text-lg sm:text-xl font-bold text-amber-400 transition-all duration-200">0 Silver</div>
-                <div class="text-[10px] text-slate-500 mt-0.5">Total market fees</div>
+                <div id="summary-taxes" class="text-sm sm:text-xl font-bold text-amber-400 truncate">0 Silver</div>
+                <div class="text-[9px] sm:text-[10px] text-slate-500 mt-0.5">Market fees</div>
             </div>
 
             <!-- Net Profit -->
-            <div class="bg-albion-card dark:bg-albion-card bg-white border border-albion-border rounded-xl p-4 shadow-sm col-span-2 md:col-span-1 relative overflow-hidden transition-all duration-200 hover:border-albion-gold/40">
-                <div class="text-xs font-medium text-slate-400 uppercase tracking-wider mb-1 flex items-center justify-between">
-                    Net Clear Profit
-                    <i data-lucide="coins" class="w-4 h-4 text-albion-gold"></i>
+            <div class="bg-albion-card dark:bg-albion-card bg-white border border-albion-border rounded-xl p-3 sm:p-4 shadow-sm col-span-1">
+                <div class="text-[10px] sm:text-xs font-medium text-slate-400 uppercase tracking-wider mb-1 flex items-center justify-between">
+                    Net Profit
+                    <i data-lucide="coins" class="w-3.5 h-3.5 sm:w-4 sm:h-4 text-albion-gold"></i>
                 </div>
-                <div id="summary-profit" class="text-lg sm:text-xl font-bold text-albion-gold transition-all duration-200">0 Silver</div>
-                <div class="text-[10px] text-slate-500 mt-0.5">Final net gain</div>
+                <div id="summary-profit" class="text-sm sm:text-xl font-bold text-albion-gold truncate">0 Silver</div>
+                <div class="text-[9px] sm:text-[10px] text-slate-500 mt-0.5">Final net gain</div>
             </div>
 
             <!-- ROI -->
-            <div class="bg-albion-card dark:bg-albion-card bg-white border border-albion-border rounded-xl p-4 shadow-sm col-span-2 md:col-span-1 relative overflow-hidden transition-all duration-200 hover:border-blue-500/30">
-                <div class="text-xs font-medium text-slate-400 uppercase tracking-wider mb-1 flex items-center justify-between">
+            <div class="bg-albion-card dark:bg-albion-card bg-white border border-albion-border rounded-xl p-3 sm:p-4 shadow-sm col-span-1 lg:col-span-1">
+                <div class="text-[10px] sm:text-xs font-medium text-slate-400 uppercase tracking-wider mb-1 flex items-center justify-between">
                     Overall ROI
-                    <i data-lucide="percent" class="w-4 h-4 text-blue-400"></i>
+                    <i data-lucide="percent" class="w-3.5 h-3.5 sm:w-4 sm:h-4 text-blue-400"></i>
                 </div>
-                <div id="summary-roi" class="text-lg sm:text-xl font-bold text-blue-400 transition-all duration-200">0.0%</div>
-                <div class="text-[10px] text-slate-500 mt-0.5">Return on investment</div>
+                <div id="summary-roi" class="text-sm sm:text-xl font-bold text-blue-400 truncate">0.0%</div>
+                <div class="text-[9px] sm:text-[10px] text-slate-500 mt-0.5">Return on investment</div>
             </div>
         </section>
 
-        <div id="recipes-container" class="space-y-6 relative z-20">
+        <div id="recipes-container" class="space-y-4 sm:space-y-6 relative z-20">
             <!-- Dynamic Recipe Blocks Rendered Here -->
         </div>
 
         <!-- Empty State Message -->
-        <div id="empty-state" class="hidden text-center py-16 border-2 border-dashed border-albion-border rounded-xl bg-albion-card/30">
-            <i data-lucide="package-open" class="w-12 h-12 text-slate-500 mx-auto mb-3"></i>
-            <h3 class="text-lg font-medium text-slate-300">No Calculation Recipe Nodes Found</h3>
-            <p id="empty-state-desc" class="text-sm text-slate-500 max-w-md mx-auto mb-4">Create your crafting chain by adding recipe nodes. Drag cards over each other to connect them!</p>
-            <button onclick="addNewRecipeBlock()" class="bg-albion-gold hover:bg-albion-gold-hover text-slate-950 font-semibold px-4 py-2 rounded-lg text-sm inline-flex items-center gap-2 active:scale-95">
-                <i data-lucide="plus-circle" class="w-4 h-4"></i> Create First Recipe Node
+        <div id="empty-state" class="hidden text-center py-12 sm:py-16 border-2 border-dashed border-albion-border rounded-xl bg-albion-card/30 px-4">
+            <i data-lucide="package-open" class="w-10 h-10 sm:w-12 sm:h-12 text-slate-500 mx-auto mb-3"></i>
+            <h3 class="text-base sm:text-lg font-medium text-slate-300">No Recipe Nodes Found</h3>
+            <p id="empty-state-desc" class="text-xs sm:text-sm text-slate-500 max-w-md mx-auto mb-4">Create your crafting chain by adding recipe nodes. Drag cards over each other to connect them!</p>
+            <button onclick="addNewRecipeBlock()" class="bg-albion-gold hover:bg-albion-gold-hover text-slate-950 font-semibold px-4 py-2 rounded-lg text-xs sm:text-sm inline-flex items-center gap-2">
+                <i data-lucide="plus-circle" class="w-4 h-4"></i> Create First Node
             </button>
         </div>
     </main>
 
     <!-- RRR Iteration Step Modal -->
     <div id="rrr-modal" class="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
-        <div class="bg-albion-card dark:bg-albion-card bg-white border border-albion-border rounded-xl max-w-lg w-full p-6 shadow-2xl relative animate-popIn">
+        <div class="bg-albion-card dark:bg-albion-card bg-white border border-albion-border rounded-xl max-w-lg w-full p-5 sm:p-6 shadow-2xl relative animate-popIn">
             <button onclick="closeRRRModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white">
                 <i data-lucide="x" class="w-5 h-5"></i>
             </button>
@@ -337,37 +300,37 @@
                     <i data-lucide="refresh-cw" class="w-5 h-5"></i>
                 </div>
                 <div>
-                    <h3 class="font-bold text-lg">Resource Return Rate (RRR) Simulation</h3>
-                    <p class="text-xs text-slate-400">Recursive item generation breakdown</p>
+                    <h3 class="font-bold text-base sm:text-lg">Resource Return Rate (RRR) Simulation</h3>
+                    <p class="text-[11px] sm:text-xs text-slate-400">Recursive item generation breakdown</p>
                 </div>
             </div>
 
-            <div class="space-y-3 mb-6">
-                <div class="flex justify-between text-sm py-1 border-b border-albion-border">
+            <div class="space-y-2.5 mb-5 text-xs sm:text-sm">
+                <div class="flex justify-between py-1 border-b border-albion-border">
                     <span class="text-slate-400">Base Starting Crafts:</span>
                     <span id="modal-initial-qty" class="font-semibold">0</span>
                 </div>
-                <div class="flex justify-between text-sm py-1 border-b border-albion-border">
+                <div class="flex justify-between py-1 border-b border-albion-border">
                     <span class="text-slate-400">Resource Return Rate (RRR %):</span>
                     <span id="modal-rrr-rate" class="font-semibold text-blue-400">0%</span>
                 </div>
-                <div class="flex justify-between text-sm py-1 border-b border-albion-border">
+                <div class="flex justify-between py-1 border-b border-albion-border">
                     <span class="text-slate-400">Total Effective Output Items:</span>
                     <span id="modal-total-effective" class="font-bold text-emerald-400">0</span>
                 </div>
-                <div class="flex justify-between text-sm py-1 border-b border-albion-border">
+                <div class="flex justify-between py-1 border-b border-albion-border">
                     <span class="text-slate-400">Bonus Returned Crafts:</span>
                     <span id="modal-bonus-items" class="font-bold text-albion-gold">0</span>
                 </div>
             </div>
 
             <div class="text-xs font-semibold text-slate-400 uppercase mb-2">Infinite Loop Steps:</div>
-            <div id="modal-step-list" class="max-h-48 overflow-y-auto space-y-1.5 pr-2">
+            <div id="modal-step-list" class="max-h-40 sm:max-h-48 overflow-y-auto space-y-1.5 pr-1 text-xs">
                 <!-- Iteration steps rendered dynamically -->
             </div>
 
-            <div class="mt-6 flex justify-end">
-                <button onclick="closeRRRModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white text-sm font-medium rounded-lg">
+            <div class="mt-5 flex justify-end">
+                <button onclick="closeRRRModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white text-xs sm:text-sm font-medium rounded-lg">
                     Close
                 </button>
             </div>
@@ -376,13 +339,13 @@
 
     <!-- Create Workspace Tab Modal -->
     <div id="tab-modal" class="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
-        <div class="bg-albion-card dark:bg-albion-card bg-white border border-albion-border rounded-xl max-w-sm w-full p-6 shadow-2xl relative animate-popIn">
+        <div class="bg-albion-card dark:bg-albion-card bg-white border border-albion-border rounded-xl max-w-sm w-full p-5 sm:p-6 shadow-2xl relative animate-popIn">
             <button onclick="closeNewTabModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white">
                 <i data-lucide="x" class="w-5 h-5"></i>
             </button>
-            <h3 class="font-bold text-lg mb-3">Create Workspace Tab</h3>
-            <p class="text-xs text-slate-400 mb-4">Organize different crafting chains (e.g. Weapon Crafting, Armor, Refining).</p>
-            <input type="text" id="new-tab-name-input" placeholder="Tab Name..." class="w-full bg-slate-900 border border-albion-border rounded-lg px-3 py-2 text-sm text-white mb-4 focus:outline-none focus:border-albion-gold">
+            <h3 class="font-bold text-base sm:text-lg mb-2">Create Workspace Tab</h3>
+            <p class="text-xs text-slate-400 mb-4">Organize chains (e.g. Weapon Crafting, Armor, Refining).</p>
+            <input type="text" id="new-tab-name-input" placeholder="Tab Name..." class="w-full bg-slate-900 border border-albion-border rounded-lg px-3 py-2 text-xs sm:text-sm text-white mb-4 focus:outline-none focus:border-albion-gold">
             <div class="flex justify-end gap-2">
                 <button onclick="closeNewTabModal()" class="px-3 py-1.5 bg-slate-800 text-slate-300 text-xs rounded-lg font-medium">Cancel</button>
                 <button onclick="confirmCreateTab()" class="px-4 py-1.5 bg-albion-gold hover:bg-albion-gold-hover text-slate-950 text-xs rounded-lg font-semibold">Create Tab</button>
@@ -394,20 +357,16 @@
     <input type="file" id="json-import-input" accept=".json" class="hidden" onchange="handleJSONImport(event)">
 
     <script>
-        // Multi-tab Data State structure:
-        // tabs = [ { id: 'tab_1', name: 'Main Chain', blocks: [...] }, ... ]
         let workspaceTabs = [];
         let activeTabId = null;
         let searchQuery = '';
-        const STORAGE_KEY = 'albion_chain_multitab_data';
+        const STORAGE_KEY = 'albion_chain_multitab_data_v2';
         const THEME_STORAGE_KEY = 'albion_chain_theme';
 
-        // Drag & Drop State - Cards
         let draggedBlockId = null;
         let currentDropTargetId = null;
         let dropAction = null; 
 
-        // Drag & Drop State - Fields
         let draggedFieldBlockId = null;
         let draggedFieldId = null;
 
@@ -427,6 +386,23 @@
         ];
 
         const DEFAULT_TAX_RATE = 10.5;
+
+        // Safe evaluation parser for equations like "8 * 100" or "50+50"
+        function evaluateExpression(input) {
+            if (typeof input === 'number') return input;
+            if (!input) return 0;
+            const str = String(input).trim();
+            // Allow only safe characters numbers, basic math operators, periods, parentheses, and spaces
+            if (/^[0-9+\-*/().\s]+$/.test(str)) {
+                try {
+                    const result = Function(`'use strict'; return (${str})`)();
+                    return isNaN(result) ? 0 : result;
+                } catch (e) {
+                    return parseFloat(str) || 0;
+                }
+            }
+            return parseFloat(str) || 0;
+        }
 
         function formatNumber(num) {
             return new Intl.NumberFormat('en-US', { maximumFractionDigits: 1 }).format(num || 0);
@@ -486,12 +462,12 @@
             workspaceTabs = [
                 {
                     id: 'tab_' + Date.now(),
-                    name: 'Weapons Crafting',
+                    name: 'Weapons',
                     blocks: [
                         {
                             id: defaultBlockId1,
                             parentId: null,
-                            title: "1. Raw Materials & Logs",
+                            title: "1. Raw Materials",
                             fields: [
                                 { id: 'f_1_1', type: 'standard', name: 'T6 Logs', qty: 100, price: 350, isIncome: false }
                             ]
@@ -499,7 +475,7 @@
                         {
                             id: defaultBlockId2,
                             parentId: defaultBlockId1,
-                            title: "2. T6 Plank Refining Station",
+                            title: "2. Refining Station",
                             fields: [
                                 { id: 'f_2_1', type: 'rrr', name: 'T6 Planks', qty: 100, rrr: 36.7, price: 340, unitCraftedValue: 780 },
                                 { id: 'f_2_2', type: 'station_fee', name: 'Refining Tax', feePer100Nutrition: 650, totalCrafts: 100, nutritionPerCraft: 8 },
@@ -507,11 +483,6 @@
                             ]
                         }
                     ]
-                },
-                {
-                    id: 'tab_' + (Date.now() + 1),
-                    name: 'Armor & Cloth',
-                    blocks: []
                 }
             ];
             activeTabId = workspaceTabs[0].id;
@@ -557,16 +528,17 @@
                 if (!field) return;
 
                 let value = el.value;
-                if (kind === 'int') value = Math.floor(parseFloat(value)) || 0;
-                else if (kind === 'float') value = parseFloat(value) || 0;
+                if (kind === 'int') value = Math.floor(evaluateExpression(value)) || 0;
+                else if (kind === 'float') value = evaluateExpression(value) || 0;
                 else if (kind === 'bool') value = value === 'true';
                 field[key] = value;
             });
         }
 
-        function saveToLocalStorage(skipFlash) {
+        function saveToLocalStorage() {
             persistNow();
-            calculateOverallTotals(skipFlash);
+            calculateOverallTotals();
+            updateAllCardDisplays();
             drawConnectorLines();
         }
 
@@ -579,7 +551,6 @@
                         workspaceTabs = parsed.workspaceTabs;
                         activeTabId = parsed.activeTabId;
                     } else if (Array.isArray(parsed)) {
-                        // Migration fallback if old format was flat array
                         workspaceTabs = [{ id: 'tab_legacy', name: 'Main Chain', blocks: parsed }];
                         activeTabId = 'tab_legacy';
                     }
@@ -594,8 +565,6 @@
             renderAllBlocks();
         }
 
-        // ---------- TAB MANAGEMENT ----------
-
         function renderTabs() {
             const container = document.getElementById('tabs-container');
             if (!container) return;
@@ -604,11 +573,11 @@
                 const isActive = tab.id === activeTabId;
                 return `
                 <div onclick="switchTab('${tab.id}')" 
-                    class="group flex items-center gap-2 px-3.5 py-2 rounded-lg text-xs font-semibold cursor-pointer transition flex-shrink-0 border ${isActive ? 'bg-albion-gold/15 text-albion-gold border-albion-gold/40 shadow-sm' : 'bg-albion-card/60 hover:bg-albion-card text-slate-400 border-albion-border'}">
+                    class="group flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-lg text-xs font-semibold cursor-pointer transition flex-shrink-0 border ${isActive ? 'bg-albion-gold/15 text-albion-gold border-albion-gold/40 shadow-sm' : 'bg-albion-card/60 hover:bg-albion-card text-slate-400 border-albion-border'}">
                     <i data-lucide="layers" class="w-3.5 h-3.5"></i>
                     <span>${escapeHtml(tab.name)}</span>
                     ${workspaceTabs.length > 1 ? `
-                        <span onclick="event.stopPropagation(); deleteTab('${tab.id}')" class="opacity-0 group-hover:opacity-100 hover:text-red-400 p-0.5 transition ml-1" title="Delete Tab">
+                        <span onclick="event.stopPropagation(); deleteTab('${tab.id}')" class="hover:text-red-400 p-0.5 transition ml-1" title="Delete Tab">
                             <i data-lucide="x" class="w-3 h-3"></i>
                         </span>
                     ` : ''}
@@ -622,10 +591,8 @@
             persistCurrentState();
             activeTabId = tabId;
             searchQuery = '';
-            const searchInput1 = document.getElementById('node-search-input');
-            const searchInput2 = document.getElementById('node-search-mobile');
-            if (searchInput1) searchInput1.value = '';
-            if (searchInput2) searchInput2.value = '';
+            const searchInput = document.getElementById('node-search-input');
+            if (searchInput) searchInput.value = '';
 
             persistNow();
             renderAll();
@@ -663,7 +630,7 @@
                 alert("You must keep at least one workspace tab.");
                 return;
             }
-            if (confirm("Delete this workspace tab and all its recipe nodes?")) {
+            if (confirm("Delete this workspace tab and all its nodes?")) {
                 workspaceTabs = workspaceTabs.filter(t => t.id !== tabId);
                 if (activeTabId === tabId) {
                     activeTabId = workspaceTabs[0].id;
@@ -673,23 +640,12 @@
             }
         }
 
-        // ---------- SEARCH FILTER ----------
-
         function handleSearchInput(query) {
             searchQuery = query.toLowerCase().trim();
-            // Sync search inputs if both exist
-            const val = query;
-            const s1 = document.getElementById('node-search-input');
-            const s2 = document.getElementById('node-search-mobile');
-            if (s1 && s1.value !== val) s1.value = val;
-            if (s2 && s2.value !== val) s2.value = val;
-
             renderAllBlocks();
         }
 
-        // ---------- NODE & FIELD ACTIONS ----------
-
-        function addNewRecipeBlock(defaultTitle = "New Recipe Node") {
+        function addNewRecipeBlock(defaultTitle = "New Node") {
             const blocks = getActiveBlocks();
             const newBlock = {
                 id: 'block_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
@@ -697,7 +653,7 @@
                 title: defaultTitle,
                 fields: [
                     { id: 'f_' + Date.now() + '_1', type: 'rrr', name: 'Crafted Item', qty: 50, rrr: 36.7, price: 500, unitCraftedValue: 1200 },
-                    { id: 'f_' + Date.now() + '_2', type: 'station_fee', name: 'Crafting Station Tax', feePer100Nutrition: 750, totalCrafts: 50, nutritionPerCraft: 16 },
+                    { id: 'f_' + Date.now() + '_2', type: 'station_fee', name: 'Station Tax', feePer100Nutrition: 750, totalCrafts: 50, nutritionPerCraft: 16 },
                     { id: 'f_' + Date.now() + '_3', type: 'tax', name: 'Market Tax', rate: DEFAULT_TAX_RATE, applyToIncome: true }
                 ]
             };
@@ -722,8 +678,7 @@
             const block = blocks.find(b => b.id === blockId);
             if (block) {
                 block.parentId = null;
-                rerenderSingleCard(blockId);
-                saveToLocalStorage(true);
+                saveToLocalStorage();
             }
         }
 
@@ -732,10 +687,9 @@
             const block = blocks.find(b => b.id === blockId);
             if (block) {
                 block.title = newTitle;
-                blocks.forEach(child => {
-                    if (child.parentId === blockId) rerenderSingleCard(child.id);
-                });
-                saveToLocalStorage(true);
+                persistNow();
+                calculateOverallTotals();
+                drawConnectorLines();
             }
         }
 
@@ -747,18 +701,18 @@
             let newField = { id: 'f_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4), type };
 
             if (type === 'standard') {
-                newField = { ...newField, name: 'Raw Material / Sub-Component', qty: 100, price: 200, isIncome: false };
+                newField = { ...newField, name: 'Raw Material', qty: 100, price: 200, isIncome: false };
             } else if (type === 'rrr') {
-                newField = { ...newField, name: 'Crafted Weapon / Armor', qty: 50, rrr: 36.7, price: 800, unitCraftedValue: 1800 };
+                newField = { ...newField, name: 'Crafted Gear', qty: 50, rrr: 36.7, price: 800, unitCraftedValue: 1800 };
             } else if (type === 'station_fee') {
-                newField = { ...newField, name: 'Station Fee (per 100)', feePer100Nutrition: 600, totalCrafts: 50, nutritionPerCraft: 16 };
+                newField = { ...newField, name: 'Station Fee', feePer100Nutrition: 600, totalCrafts: 50, nutritionPerCraft: 16 };
             } else if (type === 'tax') {
                 newField = { ...newField, name: 'Market Tax', rate: DEFAULT_TAX_RATE, applyToIncome: true };
             }
 
             block.fields.push(newField);
-            rerenderSingleCard(blockId);
             saveToLocalStorage();
+            renderAllBlocks();
         }
 
         function removeField(blockId, fieldId) {
@@ -767,21 +721,44 @@
             if (!block) return;
 
             block.fields = block.fields.filter(f => f.id !== fieldId);
-            rerenderSingleCard(blockId);
             saveToLocalStorage();
+            renderAllBlocks();
         }
 
-        function updateFieldData(blockId, fieldId, key, value) {
+        function handleInputChange(el, blockId, fieldId, key, kind) {
             const blocks = getActiveBlocks();
             const block = blocks.find(b => b.id === blockId);
             if (!block) return;
-
             const field = block.fields.find(f => f.id === fieldId);
-            if (field) {
-                field[key] = value;
-                rerenderSingleCard(blockId);
-                saveToLocalStorage();
+            if (!field) return;
+
+            let rawVal = el.value;
+            if (kind === 'int') {
+                field[key] = Math.floor(evaluateExpression(rawVal)) || 0;
+            } else if (kind === 'float') {
+                field[key] = evaluateExpression(rawVal) || 0;
+            } else {
+                field[key] = rawVal;
             }
+
+            // Instantly update computations & values in real time without replacing elements
+            saveToLocalStorage();
+        }
+
+        // When input loses focus, update its text value to reflect evaluated math (e.g. "8 * 100" becomes "800")
+        function handleInputBlur(el, blockId, fieldId, key, kind) {
+            const blocks = getActiveBlocks();
+            const block = blocks.find(b => b.id === blockId);
+            if (!block) return;
+            const field = block.fields.find(f => f.id === fieldId);
+            if (!field) return;
+
+            if (kind === 'int' || kind === 'float') {
+                const evaluated = evaluateExpression(el.value);
+                field[key] = kind === 'int' ? Math.floor(evaluated) : evaluated;
+                el.value = field[key];
+            }
+            saveToLocalStorage();
         }
 
         function calculateRRR(baseQty, rrrPercent) {
@@ -851,7 +828,7 @@
             return { totalCost, totalGrossIncome, totalTaxes, netProfit, roi };
         }
 
-        function calculateOverallTotals(skipFlash) {
+        function calculateOverallTotals() {
             const blocks = getActiveBlocks();
             let grandCost = 0;
             let grandRevenue = 0;
@@ -873,23 +850,72 @@
             
             const profitElem = document.getElementById('summary-profit');
             profitElem.innerText = `${formatNumber(grandProfit)} Silver`;
-            profitElem.className = `text-lg sm:text-xl font-bold transition-all duration-200 ${grandProfit >= 0 ? 'text-emerald-400' : 'text-red-400'}`;
+            profitElem.className = `text-sm sm:text-xl font-bold truncate ${grandProfit >= 0 ? 'text-emerald-400' : 'text-red-400'}`;
 
             document.getElementById('summary-roi').innerText = `${grandROI.toFixed(1)}%`;
-
-            if (!skipFlash) {
-                ['summary-costs', 'summary-revenue', 'summary-taxes', 'summary-profit', 'summary-roi'].forEach(id => {
-                    const el = document.getElementById(id);
-                    if (!el) return;
-                    el.classList.remove('flash-update');
-                    void el.offsetWidth;
-                    el.classList.add('flash-update');
-                });
-            }
         }
 
-        // ---------- CARD-LEVEL DRAG & DROP ----------
+        function updateAllCardDisplays() {
+            const blocks = getActiveBlocks();
+            blocks.forEach(block => {
+                const totals = calculateBlockTotals(block);
+                
+                // Update card header metrics smoothly without full re-rendering
+                const cardEl = document.getElementById(`card-${block.id}`);
+                if (!cardEl) return;
 
+                const netProfitEl = cardEl.querySelector('.card-net-profit');
+                if (netProfitEl) {
+                    netProfitEl.innerText = `${formatNumber(totals.netProfit)} Silver`;
+                    netProfitEl.className = `font-bold card-net-profit ${totals.netProfit >= 0 ? 'text-emerald-400' : 'text-red-400'}`;
+                }
+
+                const roiEl = cardEl.querySelector('.card-roi');
+                if (roiEl) roiEl.innerText = `${totals.roi.toFixed(1)}%`;
+
+                const footerEl = cardEl.querySelector('.card-footer-summary');
+                if (footerEl) {
+                    footerEl.innerHTML = `Total Expenses: <span class="text-red-400 font-medium">${formatNumber(totals.totalCost)}</span> | 
+                                          Revenue: <span class="text-emerald-400 font-medium">${formatNumber(totals.totalGrossIncome)}</span> |
+                                          Taxes: <span class="text-amber-400 font-medium">${formatNumber(totals.totalTaxes)}</span>`;
+                }
+
+                // Update individual row calculations dynamically
+                block.fields.forEach(field => {
+                    const rowEl = document.getElementById(`field-row-${block.id}-${field.id}`);
+                    if (!rowEl) return;
+
+                    if (field.type === 'standard') {
+                        const subtotal = (field.qty || 0) * (field.price || 0);
+                        const subEl = rowEl.querySelector('.row-subtotal');
+                        if (subEl) subEl.innerText = `${field.isIncome ? '+' : '-'}${formatNumber(subtotal)}`;
+                    } else if (field.type === 'rrr') {
+                        const rrrData = calculateRRR(field.qty || 0, field.rrr || 0);
+                        const grossValueGained = rrrData.totalQty * (field.unitCraftedValue || 0);
+                        const rawCost = (field.qty || 0) * (field.price || 0);
+                        const netGainedPerCraft = rrrData.totalQty > 0 ? (grossValueGained - rawCost) / rrrData.totalQty : 0;
+
+                        const outQtyEl = rowEl.querySelector('.row-rrr-totalqty');
+                        if (outQtyEl) outQtyEl.innerText = formatInt(rrrData.totalQty);
+
+                        const subEl = rowEl.querySelector('.row-subtotal');
+                        if (subEl) subEl.innerHTML = `<div class="text-emerald-400">+${formatNumber(grossValueGained)} Silver</div><div class="text-[9px] text-slate-400">Gained/Unit: ${formatNumber(netGainedPerCraft)}</div>`;
+                    } else if (field.type === 'station_fee') {
+                        const totalNutrition = (field.nutritionPerCraft || 0) * (field.totalCrafts || 0);
+                        const calculatedFee = (field.feePer100Nutrition || 0) * (totalNutrition / 100);
+                        const subEl = rowEl.querySelector('.row-subtotal');
+                        if (subEl) subEl.innerText = `-${formatNumber(calculatedFee)} Silver`;
+                    } else if (field.type === 'tax') {
+                        const rate = (field.rate || 0) / 100;
+                        const taxAmount = field.applyToIncome ? (totals.totalGrossIncome * rate) : (totals.totalCost * rate);
+                        const subEl = rowEl.querySelector('.row-subtotal');
+                        if (subEl) subEl.innerText = `-${formatNumber(taxAmount)} Silver`;
+                    }
+                });
+            });
+        }
+
+        // ---------- CARD DRAG & DROP ----------
         function handleDragStart(e, blockId) {
             draggedBlockId = blockId;
             e.currentTarget.classList.add('dragging-card');
@@ -947,8 +973,8 @@
                     const block = blocks.find(b => b.id === draggedBlockId);
                     if (block) {
                         block.parentId = targetBlockId;
-                        rerenderSingleCard(draggedBlockId);
-                        saveToLocalStorage(true);
+                        saveToLocalStorage();
+                        renderAllBlocks();
                     }
                 } else {
                     alert("Cannot connect to a child node to prevent circular loops!");
@@ -962,7 +988,7 @@
                     blocks.splice(targetIdx, 0, moved);
 
                     reorderCardsDom();
-                    saveToLocalStorage(true);
+                    saveToLocalStorage();
                 }
             }
         }
@@ -993,8 +1019,7 @@
             });
         }
 
-        // ---------- FIELD-LEVEL DRAG & DROP ----------
-
+        // ---------- FIELD DRAG & DROP ----------
         function handleFieldDragStart(e, blockId, fieldId) {
             e.stopPropagation();
             draggedFieldBlockId = blockId;
@@ -1045,7 +1070,7 @@
             block.fields.splice(toIdx, 0, moved);
 
             reorderFieldDom(blockId);
-            saveToLocalStorage(true);
+            saveToLocalStorage();
         }
 
         function clearFieldDropHighlights() {
@@ -1061,21 +1086,9 @@
             if (!block || !anchor || !anchor.parentElement) return;
             const parent = anchor.parentElement;
             block.fields.forEach(field => {
-                const rowEl = document.getElementById(`field-${blockId}-${field.id}`);
+                const rowEl = document.getElementById(`field-row-${blockId}-${field.id}`);
                 if (rowEl) parent.insertBefore(rowEl, anchor);
             });
-        }
-
-        function rerenderSingleCard(blockId) {
-            const blocks = getActiveBlocks();
-            const block = blocks.find(b => b.id === blockId);
-            const oldEl = document.getElementById(`card-${blockId}`);
-            if (!block || !oldEl) { renderAllBlocks(); return; }
-            const temp = document.createElement('div');
-            temp.innerHTML = renderBlockHTML(block).trim();
-            const newEl = temp.firstElementChild;
-            oldEl.replaceWith(newEl);
-            lucide.createIcons();
         }
 
         function drawConnectorLines() {
@@ -1103,8 +1116,8 @@
 
                         const startX = parentRect.left - containerRect.left + 24;
                         const startY = parentRect.bottom - containerRect.top;
-                        const endX = childRect.left - containerRect.left + 24;
-                        const endY = childRect.top - containerRect.top;
+                        const endX = childCard.left - containerRect.left + 24;
+                        const endY = childCard.top - containerRect.top;
 
                         const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
                         const controlY1 = startY + (endY - startY) / 2;
@@ -1125,10 +1138,8 @@
             const emptyStateDesc = document.getElementById('empty-state-desc');
             const blocks = getActiveBlocks();
 
-            // Filter blocks based on search query
             const filteredBlocks = blocks.filter(block => {
                 if (!searchQuery) return true;
-                // Match title or any field name inside the card
                 const matchesTitle = block.title.toLowerCase().includes(searchQuery);
                 const matchesField = block.fields.some(f => (f.name || '').toLowerCase().includes(searchQuery));
                 return matchesTitle || matchesField;
@@ -1137,7 +1148,7 @@
             if (blocks.length === 0) {
                 container.innerHTML = '';
                 emptyState.classList.remove('hidden');
-                emptyStateDesc.innerText = "Create your crafting chain by adding recipe nodes. Drag cards over each other to connect them!";
+                emptyStateDesc.innerText = "Create your crafting chain by adding nodes. Drag cards over each other to connect them!";
                 calculateOverallTotals();
                 drawConnectorLines();
                 return;
@@ -1146,7 +1157,7 @@
             if (filteredBlocks.length === 0) {
                 container.innerHTML = '';
                 emptyState.classList.remove('hidden');
-                emptyStateDesc.innerText = `No recipe nodes found matching "${searchQuery}".`;
+                emptyStateDesc.innerText = `No nodes found matching "${searchQuery}".`;
                 calculateOverallTotals();
                 drawConnectorLines();
                 return;
@@ -1172,27 +1183,26 @@
                 ondragover="handleDragOver(event, '${block.id}')"
                 ondragleave="handleDragLeave(event, '${block.id}')"
                 ondrop="handleDrop(event, '${block.id}')"
-                class="recipe-card bg-albion-card dark:bg-albion-card bg-white border border-albion-border rounded-xl shadow-lg animate-fadeIn relative overflow-hidden group">
+                class="recipe-card bg-albion-card dark:bg-albion-card bg-white border border-albion-border rounded-xl shadow-lg relative overflow-hidden group">
                 
                 <!-- Block Header -->
-                <div class="bg-slate-900/60 dark:bg-slate-900/60 bg-slate-100 p-4 border-b border-albion-border flex flex-wrap items-center justify-between gap-3">
-                    <div class="flex items-center gap-3 flex-1 min-w-[220px]">
-                        <!-- Drag Grip Handle -->
-                        <div class="cursor-grab active:cursor-grabbing text-slate-400 hover:text-albion-gold p-1 transition" title="Drag up/down to reorder, or drag onto another card to connect">
-                            <i data-lucide="grip-vertical" class="w-5 h-5"></i>
+                <div class="bg-slate-900/60 dark:bg-slate-900/60 bg-slate-100 p-3 sm:p-4 border-b border-albion-border flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                    <div class="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
+                        <div class="cursor-grab active:cursor-grabbing text-slate-400 hover:text-albion-gold p-1 flex-shrink-0" title="Drag to reorder / connect">
+                            <i data-lucide="grip-vertical" class="w-4 h-4 sm:w-5 sm:h-5"></i>
                         </div>
 
-                        <div class="flex items-center gap-2 flex-1">
+                        <div class="flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-2 flex-1 min-w-0">
                             <input type="text" value="${escapeHtml(block.title)}" draggable="false"
                                 data-block="${block.id}" data-key="__title__" data-kind="text"
-                                onchange="updateBlockTitle('${block.id}', this.value)"
-                                class="bg-transparent border border-transparent hover:border-albion-border focus:border-albion-gold rounded px-2 py-1 font-bold text-base sm:text-lg w-full max-w-md focus:outline-none focus:bg-slate-800/80 transition" 
-                                placeholder="Recipe Step Name...">
+                                oninput="updateBlockTitle('${block.id}', this.value)"
+                                class="bg-transparent border border-transparent hover:border-albion-border focus:border-albion-gold rounded px-1.5 py-0.5 font-bold text-sm sm:text-base w-full max-w-xs focus:outline-none transition" 
+                                placeholder="Node Name...">
 
                             ${parentBlock ? `
-                                <span class="inline-flex items-center gap-1 text-[11px] bg-blue-500/10 text-blue-400 border border-blue-500/30 px-2 py-0.5 rounded-full animate-popIn">
-                                    <i data-lucide="link" class="w-3 h-3"></i> Linked to: ${escapeHtml(parentBlock.title)}
-                                    <button onclick="disconnectBlock('${block.id}')" draggable="false" title="Disconnect Step" class="hover:text-red-400 ml-1">
+                                <span class="inline-flex items-center gap-1 text-[10px] sm:text-[11px] bg-blue-500/10 text-blue-400 border border-blue-500/30 px-2 py-0.5 rounded-full w-fit">
+                                    <i data-lucide="link" class="w-3 h-3"></i> Linked: ${escapeHtml(parentBlock.title)}
+                                    <button onclick="disconnectBlock('${block.id}')" draggable="false" title="Disconnect" class="hover:text-red-400 ml-1">
                                         <i data-lucide="unlink" class="w-3 h-3"></i>
                                     </button>
                                 </span>
@@ -1201,45 +1211,45 @@
                     </div>
 
                     <!-- Card Metrics -->
-                    <div class="flex items-center gap-4 text-sm">
-                        <div class="text-right">
-                            <span class="text-xs text-slate-400 block">Net Gain</span>
-                            <span class="font-bold ${totals.netProfit >= 0 ? 'text-emerald-400' : 'text-red-400'}">
+                    <div class="flex items-center justify-between sm:justify-end gap-3 text-xs sm:text-sm border-t sm:border-t-0 pt-2 sm:pt-0 border-albion-border">
+                        <div class="text-left sm:text-right">
+                            <span class="text-[9px] sm:text-xs text-slate-400 block">Net Gain</span>
+                            <span class="font-bold card-net-profit ${totals.netProfit >= 0 ? 'text-emerald-400' : 'text-red-400'}">
                                 ${formatNumber(totals.netProfit)} Silver
                             </span>
                         </div>
-                        <div class="text-right border-l border-albion-border pl-4">
-                            <span class="text-xs text-slate-400 block">ROI</span>
-                            <span class="font-bold text-blue-400">${totals.roi.toFixed(1)}%</span>
+                        <div class="text-left sm:text-right border-l border-albion-border pl-3">
+                            <span class="text-[9px] sm:text-xs text-slate-400 block">ROI</span>
+                            <span class="font-bold text-blue-400 card-roi">${totals.roi.toFixed(1)}%</span>
                         </div>
-                        <button onclick="removeRecipeBlock('${block.id}')" draggable="false" title="Delete Card" class="p-2 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg ml-2">
+                        <button onclick="removeRecipeBlock('${block.id}')" draggable="false" title="Delete Node" class="p-1.5 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg ml-1">
                             <i data-lucide="trash-2" class="w-4 h-4"></i>
                         </button>
                     </div>
                 </div>
 
                 <!-- Fields List -->
-                <div class="p-4 sm:p-5 space-y-3">
+                <div class="p-3 sm:p-4 space-y-2.5 sm:space-y-3">
                     ${block.fields.map(field => renderFieldRowHTML(block.id, field)).join('')}
 
                     <!-- Action Bar for adding fields -->
-                    <div id="actions-bar-${block.id}" class="pt-3 border-t border-albion-border/60 flex flex-wrap gap-2 items-center justify-between">
-                        <div class="flex flex-wrap gap-2">
-                            <button onclick="addFieldToBlock('${block.id}', 'rrr')" class="px-3 py-1.5 bg-slate-800/40 dark:bg-slate-800/40 bg-slate-200 hover:bg-slate-700 text-slate-200 dark:text-slate-200 text-slate-800 border border-albion-border rounded-lg text-xs font-medium flex items-center gap-1.5 active:scale-95">
-                                <i data-lucide="refresh-cw" class="w-3.5 h-3.5 text-blue-400"></i> RRR Output Item
+                    <div id="actions-bar-${block.id}" class="pt-2.5 border-t border-albion-border/60 flex flex-col sm:flex-row gap-2 items-stretch sm:items-center justify-between">
+                        <div class="grid grid-cols-2 xs:flex xs:flex-wrap gap-1.5 sm:gap-2">
+                            <button onclick="addFieldToBlock('${block.id}', 'rrr')" class="px-2.5 py-1.5 bg-slate-800/40 hover:bg-slate-700 text-slate-200 border border-albion-border rounded-lg text-[11px] sm:text-xs font-medium flex items-center justify-center gap-1">
+                                <i data-lucide="refresh-cw" class="w-3 h-3 text-blue-400"></i> RRR Output
                             </button>
-                            <button onclick="addFieldToBlock('${block.id}', 'station_fee')" class="px-3 py-1.5 bg-slate-800/40 dark:bg-slate-800/40 bg-slate-200 hover:bg-slate-700 text-slate-200 dark:text-slate-200 text-slate-800 border border-albion-border rounded-lg text-xs font-medium flex items-center gap-1.5 active:scale-95">
-                                <i data-lucide="calculator" class="w-3.5 h-3.5 text-albion-gold"></i> Station Fee (100 Nutrition)
+                            <button onclick="addFieldToBlock('${block.id}', 'station_fee')" class="px-2.5 py-1.5 bg-slate-800/40 hover:bg-slate-700 text-slate-200 border border-albion-border rounded-lg text-[11px] sm:text-xs font-medium flex items-center justify-center gap-1">
+                                <i data-lucide="calculator" class="w-3 h-3 text-albion-gold"></i> Station Fee
                             </button>
-                            <button onclick="addFieldToBlock('${block.id}', 'standard')" class="px-3 py-1.5 bg-slate-800/40 dark:bg-slate-800/40 bg-slate-200 hover:bg-slate-700 text-slate-200 dark:text-slate-200 text-slate-800 border border-albion-border rounded-lg text-xs font-medium flex items-center gap-1.5 active:scale-95">
-                                <i data-lucide="plus" class="w-3.5 h-3.5 text-emerald-400"></i> Flat Expense / Income
+                            <button onclick="addFieldToBlock('${block.id}', 'standard')" class="px-2.5 py-1.5 bg-slate-800/40 hover:bg-slate-700 text-slate-200 border border-albion-border rounded-lg text-[11px] sm:text-xs font-medium flex items-center justify-center gap-1">
+                                <i data-lucide="plus" class="w-3 h-3 text-emerald-400"></i> Expense/Income
                             </button>
-                            <button onclick="addFieldToBlock('${block.id}', 'tax')" class="px-3 py-1.5 bg-slate-800/40 dark:bg-slate-800/40 bg-slate-200 hover:bg-slate-700 text-slate-200 dark:text-slate-200 text-slate-800 border border-albion-border rounded-lg text-xs font-medium flex items-center gap-1.5 active:scale-95">
-                                <i data-lucide="percent" class="w-3.5 h-3.5 text-amber-400"></i> Market Tax
+                            <button onclick="addFieldToBlock('${block.id}', 'tax')" class="px-2.5 py-1.5 bg-slate-800/40 hover:bg-slate-700 text-slate-200 border border-albion-border rounded-lg text-[11px] sm:text-xs font-medium flex items-center justify-center gap-1">
+                                <i data-lucide="percent" class="w-3 h-3 text-amber-400"></i> Market Tax
                             </button>
                         </div>
 
-                        <div class="text-xs text-slate-400">
+                        <div class="text-[10px] sm:text-xs text-slate-400 text-right card-footer-summary">
                             Total Expenses: <span class="text-red-400 font-medium">${formatNumber(totals.totalCost)}</span> | 
                             Revenue: <span class="text-emerald-400 font-medium">${formatNumber(totals.totalGrossIncome)}</span> |
                             Taxes: <span class="text-amber-400 font-medium">${formatNumber(totals.totalTaxes)}</span>
@@ -1260,13 +1270,13 @@
         }
 
         function fieldGrip(title) {
-            return `<div class="field-grip text-slate-400 hover:text-albion-gold flex-shrink-0" title="${title}">
+            return `<div class="field-grip text-slate-400 hover:text-albion-gold flex-shrink-0 p-1" title="${title}">
                 <i data-lucide="grip-vertical" class="w-3.5 h-3.5"></i>
             </div>`;
         }
 
         function renderFieldRowHTML(blockId, field) {
-            const inputBgClass = "bg-slate-900/60 dark:bg-slate-900/60 bg-white border border-albion-border rounded px-2 py-1 text-xs";
+            const inputClass = "bg-slate-900/60 dark:bg-slate-900/60 bg-white border border-albion-border rounded px-2 py-1 text-xs focus:outline-none";
 
             if (field.type === 'rrr') {
                 const rrrData = calculateRRR(field.qty || 0, field.rrr || 0);
@@ -1275,66 +1285,63 @@
                 const netGainedPerCraft = rrrData.totalQty > 0 ? (grossValueGained - rawCost) / rrrData.totalQty : 0;
 
                 return `
-                <div id="field-${blockId}-${field.id}" ${fieldDragAttrs(blockId, field.id)} class="field-row bg-slate-900/30 dark:bg-slate-900/30 bg-slate-50 p-3 rounded-lg border border-blue-500/30 flex flex-wrap items-center gap-2.5 sm:gap-3">
-                    ${fieldGrip('Drag to reorder this row')}
-                    <div class="p-1.5 bg-blue-500/10 text-blue-400 rounded">
-                        <i data-lucide="refresh-cw" class="w-4 h-4"></i>
+                <div id="field-row-${blockId}-${field.id}" ${fieldDragAttrs(blockId, field.id)} class="field-row bg-slate-900/30 dark:bg-slate-900/30 bg-slate-50 p-2.5 rounded-lg border border-blue-500/30 flex flex-wrap items-center gap-2">
+                    ${fieldGrip('Drag row')}
+                    <div class="p-1 bg-blue-500/10 text-blue-400 rounded flex-shrink-0">
+                        <i data-lucide="refresh-cw" class="w-3.5 h-3.5"></i>
                     </div>
 
                     <input type="text" value="${escapeHtml(field.name)}" draggable="false"
                         data-block="${blockId}" data-field="${field.id}" data-key="name" data-kind="text"
-                        onchange="updateFieldData('${blockId}', '${field.id}', 'name', this.value)"
-                        class="${inputBgClass} flex-1 min-w-[130px] focus:outline-none focus:border-blue-400" placeholder="Crafted Item Name">
+                        oninput="handleInputChange(this, '${blockId}', '${field.id}', 'name', 'text')"
+                        class="${inputClass} flex-1 min-w-[110px] focus:border-blue-400" placeholder="Item Name">
 
                     <div class="flex items-center gap-1">
-                        <span class="text-[10px] text-slate-400 uppercase">Input Qty</span>
-                        <input type="number" value="${field.qty}" min="0" step="1" draggable="false"
+                        <span class="text-[9px] text-slate-400 uppercase">Qty</span>
+                        <input type="text" value="${field.qty}" draggable="false"
                             data-block="${blockId}" data-field="${field.id}" data-key="qty" data-kind="int"
-                            onchange="updateFieldData('${blockId}', '${field.id}', 'qty', Math.floor(parseFloat(this.value)) || 0)"
-                            class="${inputBgClass} w-16 focus:outline-none focus:border-blue-400">
+                            oninput="handleInputChange(this, '${blockId}', '${field.id}', 'qty', 'int')"
+                            onblur="handleInputBlur(this, '${blockId}', '${field.id}', 'qty', 'int')"
+                            class="${inputClass} w-14 sm:w-16 focus:border-blue-400">
                     </div>
 
                     <div class="flex items-center gap-1">
-                        <span class="text-[10px] text-slate-400 uppercase">RRR %</span>
-                        <input type="number" value="${field.rrr}" step="0.1" min="0" max="99" draggable="false"
+                        <span class="text-[9px] text-slate-400 uppercase">RRR%</span>
+                        <input type="text" value="${field.rrr}" draggable="false"
                             data-block="${blockId}" data-field="${field.id}" data-key="rrr" data-kind="float"
-                            onchange="updateFieldData('${blockId}', '${field.id}', 'rrr', parseFloat(this.value) || 0)"
-                            class="${inputBgClass} text-blue-400 font-semibold w-16 focus:outline-none focus:border-blue-400">
-                        
-                        <select draggable="false" onchange="updateFieldData('${blockId}', '${field.id}', 'rrr', parseFloat(this.value))" 
-                            class="${inputBgClass} text-[11px] text-slate-300 focus:outline-none">
-                            <option value="" disabled selected>Preset...</option>
-                            ${RRR_PRESETS.map(p => `<option value="${p.value}">${p.label}</option>`).join('')}
-                        </select>
+                            oninput="handleInputChange(this, '${blockId}', '${field.id}', 'rrr', 'float')"
+                            onblur="handleInputBlur(this, '${blockId}', '${field.id}', 'rrr', 'float')"
+                            class="${inputClass} text-blue-400 font-semibold w-14 sm:w-16 focus:border-blue-400">
                     </div>
 
                     <div class="flex items-center gap-1">
-                        <span class="text-[10px] text-slate-400 uppercase">Mat. Cost</span>
-                        <input type="number" value="${field.price}" min="0" draggable="false"
+                        <span class="text-[9px] text-slate-400 uppercase">Cost</span>
+                        <input type="text" value="${field.price}" draggable="false"
                             data-block="${blockId}" data-field="${field.id}" data-key="price" data-kind="float"
-                            onchange="updateFieldData('${blockId}', '${field.id}', 'price', parseFloat(this.value) || 0)"
-                            class="${inputBgClass} w-20 focus:outline-none focus:border-blue-400">
+                            oninput="handleInputChange(this, '${blockId}', '${field.id}', 'price', 'float')"
+                            onblur="handleInputBlur(this, '${blockId}', '${field.id}', 'price', 'float')"
+                            class="${inputClass} w-16 sm:w-20 focus:border-blue-400">
                     </div>
 
                     <div class="flex items-center gap-1">
-                        <span class="text-[10px] text-albion-gold uppercase font-semibold">1 Unit Sell</span>
-                        <input type="number" value="${field.unitCraftedValue}" min="0" draggable="false"
+                        <span class="text-[9px] text-albion-gold uppercase font-semibold">Sell</span>
+                        <input type="text" value="${field.unitCraftedValue}" draggable="false"
                             data-block="${blockId}" data-field="${field.id}" data-key="unitCraftedValue" data-kind="float"
-                            onchange="updateFieldData('${blockId}', '${field.id}', 'unitCraftedValue', parseFloat(this.value) || 0)"
-                            class="bg-slate-900/60 dark:bg-slate-900/60 bg-white border border-albion-gold/40 rounded px-2 py-1 text-xs text-albion-gold font-semibold w-20 focus:outline-none focus:border-albion-gold">
+                            oninput="handleInputChange(this, '${blockId}', '${field.id}', 'unitCraftedValue', 'float')"
+                            onblur="handleInputBlur(this, '${blockId}', '${field.id}', 'unitCraftedValue', 'float')"
+                            class="bg-slate-900/60 dark:bg-slate-900/60 bg-white border border-albion-gold/40 rounded px-2 py-1 text-xs text-albion-gold font-semibold w-16 sm:w-20 focus:outline-none focus:border-albion-gold">
                     </div>
 
-                    <button onclick="openRRRModal(${field.qty || 0}, ${field.rrr || 0})" draggable="false" class="bg-blue-950/60 border border-blue-500/40 hover:border-blue-400 px-2.5 py-1 rounded text-xs flex items-center gap-1.5 text-blue-300">
-                        <span>Total Output: <strong>${formatInt(rrrData.totalQty)}</strong></span>
-                        <i data-lucide="info" class="w-3 h-3 text-blue-400"></i>
+                    <button onclick="openRRRModal(${field.qty || 0}, ${field.rrr || 0})" draggable="false" class="bg-blue-950/60 border border-blue-500/40 px-2 py-1 rounded text-[11px] flex items-center gap-1 text-blue-300">
+                        <span>Out: <strong class="row-rrr-totalqty">${formatInt(rrrData.totalQty)}</strong></span>
                     </button>
 
-                    <div class="min-w-[110px] text-right font-medium text-xs">
+                    <div class="min-w-[90px] text-right font-medium text-xs row-subtotal ml-auto">
                         <div class="text-emerald-400">+${formatNumber(grossValueGained)} Silver</div>
-                        <div class="text-[10px] text-slate-400">Gained/Unit: ${formatNumber(netGainedPerCraft)}</div>
+                        <div class="text-[9px] text-slate-400">Gained/Unit: ${formatNumber(netGainedPerCraft)}</div>
                     </div>
 
-                    <button onclick="removeField('${blockId}', '${field.id}')" draggable="false" class="text-slate-400 hover:text-red-400 p-1" title="Delete Row">
+                    <button onclick="removeField('${blockId}', '${field.id}')" draggable="false" class="text-slate-400 hover:text-red-400 p-1" title="Delete">
                         <i data-lucide="x" class="w-4 h-4"></i>
                     </button>
                 </div>
@@ -1346,46 +1353,49 @@
                 const calculatedFee = (field.feePer100Nutrition || 0) * (totalNutrition / 100);
 
                 return `
-                <div id="field-${blockId}-${field.id}" ${fieldDragAttrs(blockId, field.id)} class="field-row bg-slate-900/30 dark:bg-slate-900/30 bg-slate-50 p-3 rounded-lg border border-albion-gold/30 flex flex-wrap items-center gap-2.5 sm:gap-3">
-                    ${fieldGrip('Drag to reorder this row')}
-                    <div class="p-1.5 bg-albion-gold/10 text-albion-gold rounded">
-                        <i data-lucide="calculator" class="w-4 h-4"></i>
+                <div id="field-row-${blockId}-${field.id}" ${fieldDragAttrs(blockId, field.id)} class="field-row bg-slate-900/30 dark:bg-slate-900/30 bg-slate-50 p-2.5 rounded-lg border border-albion-gold/30 flex flex-wrap items-center gap-2">
+                    ${fieldGrip('Drag row')}
+                    <div class="p-1 bg-albion-gold/10 text-albion-gold rounded flex-shrink-0">
+                        <i data-lucide="calculator" class="w-3.5 h-3.5"></i>
                     </div>
 
                     <input type="text" value="${escapeHtml(field.name)}" draggable="false"
                         data-block="${blockId}" data-field="${field.id}" data-key="name" data-kind="text"
-                        onchange="updateFieldData('${blockId}', '${field.id}', 'name', this.value)"
-                        class="${inputBgClass} flex-1 min-w-[130px] focus:outline-none focus:border-albion-gold" placeholder="Station Tax Name">
+                        oninput="handleInputChange(this, '${blockId}', '${field.id}', 'name', 'text')"
+                        class="${inputClass} flex-1 min-w-[110px] focus:border-albion-gold" placeholder="Station Tax">
 
                     <div class="flex items-center gap-1">
-                        <span class="text-[10px] text-slate-400 uppercase">Fee / 100 Nut.</span>
-                        <input type="number" value="${field.feePer100Nutrition}" min="0" draggable="false"
+                        <span class="text-[9px] text-slate-400 uppercase">Fee/100Nut</span>
+                        <input type="text" value="${field.feePer100Nutrition}" draggable="false"
                             data-block="${blockId}" data-field="${field.id}" data-key="feePer100Nutrition" data-kind="float"
-                            onchange="updateFieldData('${blockId}', '${field.id}', 'feePer100Nutrition', parseFloat(this.value) || 0)"
-                            class="${inputBgClass} text-albion-gold font-semibold w-20 focus:outline-none focus:border-albion-gold">
+                            oninput="handleInputChange(this, '${blockId}', '${field.id}', 'feePer100Nutrition', 'float')"
+                            onblur="handleInputBlur(this, '${blockId}', '${field.id}', 'feePer100Nutrition', 'float')"
+                            class="${inputClass} text-albion-gold font-semibold w-16 focus:border-albion-gold">
                     </div>
 
                     <div class="flex items-center gap-1">
-                        <span class="text-[10px] text-slate-400 uppercase">Craft Count</span>
-                        <input type="number" value="${field.totalCrafts}" min="0" step="1" draggable="false"
+                        <span class="text-[9px] text-slate-400 uppercase">Crafts</span>
+                        <input type="text" value="${field.totalCrafts}" draggable="false"
                             data-block="${blockId}" data-field="${field.id}" data-key="totalCrafts" data-kind="int"
-                            onchange="updateFieldData('${blockId}', '${field.id}', 'totalCrafts', Math.floor(parseFloat(this.value)) || 0)"
-                            class="${inputBgClass} w-16 focus:outline-none focus:border-albion-gold">
+                            oninput="handleInputChange(this, '${blockId}', '${field.id}', 'totalCrafts', 'int')"
+                            onblur="handleInputBlur(this, '${blockId}', '${field.id}', 'totalCrafts', 'int')"
+                            class="${inputClass} w-14 focus:border-albion-gold">
                     </div>
 
                     <div class="flex items-center gap-1">
-                        <span class="text-[10px] text-slate-400 uppercase">Nut / Craft</span>
-                        <input type="number" value="${field.nutritionPerCraft}" min="0" draggable="false"
+                        <span class="text-[9px] text-slate-400 uppercase">Nut/Craft</span>
+                        <input type="text" value="${field.nutritionPerCraft}" draggable="false"
                             data-block="${blockId}" data-field="${field.id}" data-key="nutritionPerCraft" data-kind="float"
-                            onchange="updateFieldData('${blockId}', '${field.id}', 'nutritionPerCraft', parseFloat(this.value) || 0)"
-                            class="${inputBgClass} w-16 focus:outline-none focus:border-albion-gold">
+                            oninput="handleInputChange(this, '${blockId}', '${field.id}', 'nutritionPerCraft', 'float')"
+                            onblur="handleInputBlur(this, '${blockId}', '${field.id}', 'nutritionPerCraft', 'float')"
+                            class="${inputClass} w-14 focus:border-albion-gold">
                     </div>
 
-                    <div class="min-w-[100px] text-right font-medium text-xs text-red-400">
+                    <div class="min-w-[90px] text-right font-medium text-xs text-red-400 row-subtotal ml-auto">
                         -${formatNumber(calculatedFee)} Silver
                     </div>
 
-                    <button onclick="removeField('${blockId}', '${field.id}')" draggable="false" class="text-slate-400 hover:text-red-400 p-1" title="Delete Row">
+                    <button onclick="removeField('${blockId}', '${field.id}')" draggable="false" class="text-slate-400 hover:text-red-400 p-1" title="Delete">
                         <i data-lucide="x" class="w-4 h-4"></i>
                     </button>
                 </div>
@@ -1395,46 +1405,48 @@
             if (field.type === 'standard') {
                 const subtotal = (field.qty || 0) * (field.price || 0);
                 return `
-                <div id="field-${blockId}-${field.id}" ${fieldDragAttrs(blockId, field.id)} class="field-row bg-slate-900/30 dark:bg-slate-900/30 bg-slate-50 p-3 rounded-lg border border-albion-border/50 flex flex-wrap items-center gap-2.5 sm:gap-3">
-                    ${fieldGrip('Drag to reorder this row')}
-                    <div class="p-1.5 bg-slate-800 text-slate-400 rounded">
-                        <i data-lucide="${field.isIncome ? 'arrow-down-left' : 'arrow-up-right'}" class="w-4 h-4 ${field.isIncome ? 'text-emerald-400' : 'text-red-400'}"></i>
+                <div id="field-row-${blockId}-${field.id}" ${fieldDragAttrs(blockId, field.id)} class="field-row bg-slate-900/30 dark:bg-slate-900/30 bg-slate-50 p-2.5 rounded-lg border border-albion-border/50 flex flex-wrap items-center gap-2">
+                    ${fieldGrip('Drag row')}
+                    <div class="p-1 bg-slate-800 text-slate-400 rounded flex-shrink-0">
+                        <i data-lucide="${field.isIncome ? 'arrow-down-left' : 'arrow-up-right'}" class="w-3.5 h-3.5 ${field.isIncome ? 'text-emerald-400' : 'text-red-400'}"></i>
                     </div>
 
                     <input type="text" value="${escapeHtml(field.name)}" draggable="false"
                         data-block="${blockId}" data-field="${field.id}" data-key="name" data-kind="text"
-                        onchange="updateFieldData('${blockId}', '${field.id}', 'name', this.value)"
-                        class="${inputBgClass} flex-1 min-w-[130px] focus:outline-none focus:border-slate-400" placeholder="Expense Name">
+                        oninput="handleInputChange(this, '${blockId}', '${field.id}', 'name', 'text')"
+                        class="${inputClass} flex-1 min-w-[110px]" placeholder="Name">
 
                     <select draggable="false"
                         data-block="${blockId}" data-field="${field.id}" data-key="isIncome" data-kind="bool"
-                        onchange="updateFieldData('${blockId}', '${field.id}', 'isIncome', this.value === 'true')" 
-                        class="${inputBgClass} text-slate-300 focus:outline-none">
-                        <option value="false" ${!field.isIncome ? 'selected' : ''}>Expense (Cost)</option>
-                        <option value="true" ${field.isIncome ? 'selected' : ''}>Income (Revenue)</option>
+                        onchange="handleInputChange(this, '${blockId}', '${field.id}', 'isIncome', 'bool')" 
+                        class="${inputClass} text-slate-300">
+                        <option value="false" ${!field.isIncome ? 'selected' : ''}>Expense</option>
+                        <option value="true" ${field.isIncome ? 'selected' : ''}>Income</option>
                     </select>
 
                     <div class="flex items-center gap-1">
-                        <span class="text-[10px] text-slate-400 uppercase">Qty</span>
-                        <input type="number" value="${field.qty}" min="0" draggable="false"
+                        <span class="text-[9px] text-slate-400 uppercase">Qty</span>
+                        <input type="text" value="${field.qty}" draggable="false"
                             data-block="${blockId}" data-field="${field.id}" data-key="qty" data-kind="float"
-                            onchange="updateFieldData('${blockId}', '${field.id}', 'qty', parseFloat(this.value) || 0)"
-                            class="${inputBgClass} w-16 focus:outline-none focus:border-slate-400">
+                            oninput="handleInputChange(this, '${blockId}', '${field.id}', 'qty', 'float')"
+                            onblur="handleInputBlur(this, '${blockId}', '${field.id}', 'qty', 'float')"
+                            class="${inputClass} w-16">
                     </div>
 
                     <div class="flex items-center gap-1">
-                        <span class="text-[10px] text-slate-400 uppercase">Price/Unit</span>
-                        <input type="number" value="${field.price}" min="0" draggable="false"
+                        <span class="text-[9px] text-slate-400 uppercase">Price</span>
+                        <input type="text" value="${field.price}" draggable="false"
                             data-block="${blockId}" data-field="${field.id}" data-key="price" data-kind="float"
-                            onchange="updateFieldData('${blockId}', '${field.id}', 'price', parseFloat(this.value) || 0)"
-                            class="${inputBgClass} w-20 focus:outline-none focus:border-slate-400">
+                            oninput="handleInputChange(this, '${blockId}', '${field.id}', 'price', 'float')"
+                            onblur="handleInputBlur(this, '${blockId}', '${field.id}', 'price', 'float')"
+                            class="${inputClass} w-20">
                     </div>
 
-                    <div class="min-w-[90px] text-right font-medium text-xs ${field.isIncome ? 'text-emerald-400' : 'text-slate-300'}">
+                    <div class="min-w-[80px] text-right font-medium text-xs ${field.isIncome ? 'text-emerald-400' : 'text-slate-300'} row-subtotal ml-auto">
                         ${field.isIncome ? '+' : '-'}${formatNumber(subtotal)}
                     </div>
 
-                    <button onclick="removeField('${blockId}', '${field.id}')" draggable="false" class="text-slate-400 hover:text-red-400 p-1" title="Delete Row">
+                    <button onclick="removeField('${blockId}', '${field.id}')" draggable="false" class="text-slate-400 hover:text-red-400 p-1" title="Delete">
                         <i data-lucide="x" class="w-4 h-4"></i>
                     </button>
                 </div>
@@ -1448,44 +1460,39 @@
                 const taxAmount = field.applyToIncome ? (totals.totalGrossIncome * rate) : (totals.totalCost * rate);
 
                 return `
-                <div id="field-${blockId}-${field.id}" ${fieldDragAttrs(blockId, field.id)} class="field-row bg-slate-900/30 dark:bg-slate-900/30 bg-slate-50 p-3 rounded-lg border border-amber-500/30 flex flex-wrap items-center gap-2.5 sm:gap-3">
-                    ${fieldGrip('Drag to reorder this row')}
-                    <div class="p-1.5 bg-amber-500/10 text-amber-400 rounded">
-                        <i data-lucide="percent" class="w-4 h-4"></i>
+                <div id="field-row-${blockId}-${field.id}" ${fieldDragAttrs(blockId, field.id)} class="field-row bg-slate-900/30 dark:bg-slate-900/30 bg-slate-50 p-2.5 rounded-lg border border-amber-500/30 flex flex-wrap items-center gap-2">
+                    ${fieldGrip('Drag row')}
+                    <div class="p-1 bg-amber-500/10 text-amber-400 rounded flex-shrink-0">
+                        <i data-lucide="percent" class="w-3.5 h-3.5"></i>
                     </div>
 
                     <input type="text" value="${escapeHtml(field.name)}" draggable="false"
                         data-block="${blockId}" data-field="${field.id}" data-key="name" data-kind="text"
-                        onchange="updateFieldData('${blockId}', '${field.id}', 'name', this.value)"
-                        class="${inputBgClass} flex-1 min-w-[130px] focus:outline-none focus:border-amber-400" placeholder="Market Tax Name">
+                        oninput="handleInputChange(this, '${blockId}', '${field.id}', 'name', 'text')"
+                        class="${inputClass} flex-1 min-w-[110px] focus:border-amber-400" placeholder="Tax Name">
 
                     <div class="flex items-center gap-1">
-                        <span class="text-[10px] text-slate-400 uppercase">Rate %</span>
-                        <input type="number" value="${field.rate}" step="0.1" min="0" max="100" draggable="false"
+                        <span class="text-[9px] text-slate-400 uppercase">Rate%</span>
+                        <input type="text" value="${field.rate}" draggable="false"
                             data-block="${blockId}" data-field="${field.id}" data-key="rate" data-kind="float"
-                            onchange="updateFieldData('${blockId}', '${field.id}', 'rate', parseFloat(this.value) || 0)"
-                            class="${inputBgClass} text-amber-400 font-semibold w-16 focus:outline-none focus:border-amber-400">
+                            oninput="handleInputChange(this, '${blockId}', '${field.id}', 'rate', 'float')"
+                            onblur="handleInputBlur(this, '${blockId}', '${field.id}', 'rate', 'float')"
+                            class="${inputClass} text-amber-400 font-semibold w-16 focus:border-amber-400">
                     </div>
-
-                    <select draggable="false" onchange="updateFieldData('${blockId}', '${field.id}', 'rate', parseFloat(this.value))" 
-                        class="${inputBgClass} text-[11px] text-slate-300 focus:outline-none">
-                        <option value="" disabled selected>Tax Preset...</option>
-                        ${TAX_PRESETS.map(p => `<option value="${p.value}">${p.label}</option>`).join('')}
-                    </select>
 
                     <select draggable="false"
                         data-block="${blockId}" data-field="${field.id}" data-key="applyToIncome" data-kind="bool"
-                        onchange="updateFieldData('${blockId}', '${field.id}', 'applyToIncome', this.value === 'true')" 
-                        class="${inputBgClass} text-slate-300 focus:outline-none">
-                        <option value="true" ${field.applyToIncome ? 'selected' : ''}>Apply to Gross Revenue</option>
-                        <option value="false" ${!field.applyToIncome ? 'selected' : ''}>Apply to Total Expenses</option>
+                        onchange="handleInputChange(this, '${blockId}', '${field.id}', 'applyToIncome', 'bool')" 
+                        class="${inputClass} text-slate-300">
+                        <option value="true" ${field.applyToIncome ? 'selected' : ''}>On Revenue</option>
+                        <option value="false" ${!field.applyToIncome ? 'selected' : ''}>On Expenses</option>
                     </select>
 
-                    <div class="min-w-[90px] text-right font-medium text-xs text-amber-400">
+                    <div class="min-w-[80px] text-right font-medium text-xs text-amber-400 row-subtotal ml-auto">
                         -${formatNumber(taxAmount)} Silver
                     </div>
 
-                    <button onclick="removeField('${blockId}', '${field.id}')" draggable="false" class="text-slate-400 hover:text-red-400 p-1" title="Delete Row">
+                    <button onclick="removeField('${blockId}', '${field.id}')" draggable="false" class="text-slate-400 hover:text-red-400 p-1" title="Delete">
                         <i data-lucide="x" class="w-4 h-4"></i>
                     </button>
                 </div>
@@ -1546,8 +1553,7 @@
                         saveToLocalStorage();
                         renderAll();
                     } else if (Array.isArray(importedData)) {
-                        // Old flat array format support
-                        workspaceTabs = [{ id: 'tab_' + Date.now(), name: 'Imported Chain', blocks: importedData }];
+                        workspaceTabs = [{ id: 'tab_' + Date.now(), name: 'Imported', blocks: importedData }];
                         activeTabId = workspaceTabs[0].id;
                         saveToLocalStorage();
                         renderAll();
@@ -1555,14 +1561,14 @@
                         alert("Invalid file structure.");
                     }
                 } catch (err) {
-                    alert("Error parsing uploaded JSON file.");
+                    alert("Error parsing JSON file.");
                 }
             };
             reader.readAsText(file);
         }
 
         function resetData() {
-            if (confirm("Reset all tabs, recipe cards and connections in this calculator?")) {
+            if (confirm("Reset all tabs, nodes and connections?")) {
                 workspaceTabs = [];
                 initDefaultTabs();
                 renderAll();
