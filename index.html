@@ -154,7 +154,7 @@
                         <i data-lucide="search" class="w-3.5 h-3.5 sm:w-4 sm:h-4"></i>
                     </span>
                     <input type="text" id="node-search-input" oninput="handleSearchInput(this.value)" 
-                        placeholder="Search nodes..." 
+                        placeholder="Search nodes or items (e.g. T6, Planks, Tax)..." 
                         class="w-full bg-slate-900/60 dark:bg-slate-900/60 bg-slate-100 border border-albion-border rounded-lg pl-8 pr-3 py-1.5 text-xs sm:text-sm focus:outline-none focus:border-albion-gold transition">
                 </div>
             </div>
@@ -306,18 +306,18 @@
         </div>
     </div>
 
-    <!-- Create Workspace Tab Modal -->
+    <!-- Create/Rename Workspace Tab Modal -->
     <div id="tab-modal" class="fixed inset-0 bg-black/85 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
         <div class="bg-albion-card dark:bg-albion-card bg-white border border-albion-border rounded-xl max-w-sm w-full p-5 sm:p-6 shadow-2xl relative animate-popIn">
             <button onclick="closeNewTabModal()" class="absolute top-4 right-4 text-slate-400 hover:text-white">
                 <i data-lucide="x" class="w-5 h-5"></i>
             </button>
-            <h3 class="font-bold text-base sm:text-lg mb-2">Create Workspace Tab</h3>
-            <p class="text-xs text-slate-400 mb-4">Organize chains (e.g. Weapon Crafting, Armor, Refining).</p>
+            <h3 id="tab-modal-title" class="font-bold text-base sm:text-lg mb-2">Create Workspace Tab</h3>
+            <p id="tab-modal-desc" class="text-xs text-slate-400 mb-4">Organize chains (e.g. Weapon Crafting, Armor, Refining).</p>
             <input type="text" id="new-tab-name-input" placeholder="Tab Name..." class="w-full bg-slate-900 border border-albion-border rounded-lg px-3 py-2 text-xs sm:text-sm text-white mb-4 focus:outline-none focus:border-albion-gold">
             <div class="flex justify-end gap-2">
                 <button onclick="closeNewTabModal()" class="px-3 py-1.5 bg-slate-800 text-slate-300 text-xs rounded-lg font-medium">Cancel</button>
-                <button onclick="confirmCreateTab()" class="px-4 py-1.5 bg-albion-gold hover:bg-albion-gold-hover text-slate-950 text-xs rounded-lg font-semibold">Create Tab</button>
+                <button id="tab-modal-submit-btn" onclick="confirmCreateTab()" class="px-4 py-1.5 bg-albion-gold hover:bg-albion-gold-hover text-slate-950 text-xs rounded-lg font-semibold">Create Tab</button>
             </div>
         </div>
     </div>
@@ -328,6 +328,7 @@
     <script>
         let workspaceTabs = [];
         let activeTabId = null;
+        let renamingTabId = null;
         let searchQuery = '';
         const STORAGE_KEY = 'albion_chain_multitab_data_v7';
         const THEME_STORAGE_KEY = 'albion_chain_theme';
@@ -519,8 +520,8 @@
             container.innerHTML = workspaceTabs.map(tab => {
                 const isActive = tab.id === activeTabId;
                 return `
-                <div onclick="switchTab('${tab.id}')" 
-                    class="group flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-lg text-xs font-semibold cursor-pointer transition flex-shrink-0 border ${isActive ? 'bg-albion-gold/15 text-albion-gold border-albion-gold/40 shadow-sm' : 'bg-albion-card/60 hover:bg-albion-card text-slate-400 border-albion-border'}">
+                <div onclick="switchTab('${tab.id}')" ondblclick="openRenameTabModal('${tab.id}', '${escapeHtml(tab.name).replace(/'/g, "\\'")}')"
+                    class="group flex items-center gap-1.5 px-3 py-1.5 sm:px-3.5 sm:py-2 rounded-lg text-xs font-semibold cursor-pointer transition flex-shrink-0 border ${isActive ? 'bg-albion-gold/15 text-albion-gold border-albion-gold/40 shadow-sm' : 'bg-albion-card/60 hover:bg-albion-card text-slate-400 border-albion-border'}" title="Double-click to rename">
                     <i data-lucide="layers" class="w-3.5 h-3.5"></i>
                     <span>${escapeHtml(tab.name)}</span>
                     ${workspaceTabs.length > 1 ? `
@@ -546,30 +547,56 @@
         }
 
         function openNewTabModal() {
+            renamingTabId = null;
+            document.getElementById('tab-modal-title').innerText = "Create Workspace Tab";
+            document.getElementById('tab-modal-desc').innerText = "Organize chains (e.g. Weapon Crafting, Armor, Refining).";
+            document.getElementById('tab-modal-submit-btn').innerText = "Create Tab";
             document.getElementById('new-tab-name-input').value = '';
             document.getElementById('tab-modal').classList.remove('hidden');
             setTimeout(() => document.getElementById('new-tab-name-input').focus(), 50);
         }
 
+        function openRenameTabModal(tabId, currentName) {
+            renamingTabId = tabId;
+            document.getElementById('tab-modal-title').innerText = "Rename Workspace Tab";
+            document.getElementById('tab-modal-desc').innerText = "Enter a new name for this workspace tab.";
+            document.getElementById('tab-modal-submit-btn').innerText = "Save Name";
+            document.getElementById('new-tab-name-input').value = currentName;
+            document.getElementById('tab-modal').classList.remove('hidden');
+            setTimeout(() => {
+                const input = document.getElementById('new-tab-name-input');
+                input.focus();
+                input.select();
+            }, 50);
+        }
+
         function closeNewTabModal() {
             document.getElementById('tab-modal').classList.add('hidden');
+            renamingTabId = null;
         }
 
         function confirmCreateTab() {
             const nameInput = document.getElementById('new-tab-name-input');
             const tabName = nameInput.value.trim() || `Workspace ${workspaceTabs.length + 1}`;
             
-            const newTab = {
-                id: 'tab_' + Date.now(),
-                name: tabName,
-                blocks: []
-            };
+            if (renamingTabId) {
+                const targetTab = workspaceTabs.find(t => t.id === renamingTabId);
+                if (targetTab) {
+                    targetTab.name = tabName;
+                }
+            } else {
+                const newTab = {
+                    id: 'tab_' + Date.now(),
+                    name: tabName,
+                    blocks: []
+                };
+                workspaceTabs.push(newTab);
+                activeTabId = newTab.id;
+            }
 
-            workspaceTabs.push(newTab);
-            activeTabId = newTab.id;
             closeNewTabModal();
             saveToLocalStorage();
-            renderAll();
+            renderTabs();
         }
 
         function deleteTab(tabId) {
@@ -599,12 +626,36 @@
                 parentId: null,
                 title: defaultTitle,
                 fields: [
-                    { id: 'f_' + Date.now() + '_1', type: 'rrr', name: 'Crafted Item', qty: 50, rrr: 36.7, price: 500, unitCraftedValue: 1200 },
+                    { id: 'f_' + Date.now() + '_1', type: 'rrr', name: 'Crafted Gear', qty: 50, rrr: 36.7, price: 500, unitCraftedValue: 1200 },
                     { id: 'f_' + Date.now() + '_2', type: 'station_fee', name: 'Station Tax', feePer100Nutrition: 750, totalCrafts: 50, nutritionPerCraft: 16 },
                     { id: 'f_' + Date.now() + '_3', type: 'tax', name: 'Market Tax', rate: DEFAULT_TAX_RATE, applyToIncome: true }
                 ]
             };
             blocks.push(newBlock);
+            saveToLocalStorage();
+            renderAllBlocks();
+        }
+
+        function duplicateRecipeBlock(blockId) {
+            persistCurrentState();
+            const blocks = getActiveBlocks();
+            const blockIndex = blocks.findIndex(b => b.id === blockId);
+            if (blockIndex === -1) return;
+
+            const originalBlock = blocks[blockIndex];
+            const newBlockId = 'block_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4);
+            
+            const clonedBlock = {
+                ...JSON.parse(JSON.stringify(originalBlock)),
+                id: newBlockId,
+                title: originalBlock.title + ' (Copy)',
+                fields: originalBlock.fields.map(f => ({
+                    ...f,
+                    id: 'f_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4)
+                }))
+            };
+
+            blocks.splice(blockIndex + 1, 0, clonedBlock);
             saveToLocalStorage();
             renderAllBlocks();
         }
@@ -692,7 +743,6 @@
 
             saveToLocalStorage();
 
-            // If standard field isIncome changed, re-render to update the icon correctly
             if (key === 'isIncome') {
                 renderAllBlocks();
             }
@@ -1105,7 +1155,12 @@
             const filteredBlocks = blocks.filter(block => {
                 if (!searchQuery) return true;
                 const matchesTitle = block.title.toLowerCase().includes(searchQuery);
-                const matchesField = block.fields.some(f => (f.name || '').toLowerCase().includes(searchQuery));
+                const matchesField = block.fields.some(f => {
+                    const nameMatch = (f.name || '').toLowerCase().includes(searchQuery);
+                    const qtyMatch = String(f.qty || '').toLowerCase().includes(searchQuery);
+                    const priceMatch = String(f.price || f.unitCraftedValue || f.feePer100Nutrition || f.rate || '').toLowerCase().includes(searchQuery);
+                    return nameMatch || qtyMatch || priceMatch;
+                });
                 return matchesTitle || matchesField;
             });
 
@@ -1180,9 +1235,14 @@
                             <span class="text-[9px] sm:text-xs text-slate-400 block">ROI</span>
                             <span class="font-bold text-blue-400 card-roi">${totals.roi.toFixed(1)}%</span>
                         </div>
-                        <button onclick="removeRecipeBlock('${block.id}')" title="Delete Node" class="p-1.5 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg ml-1">
-                            <i data-lucide="trash-2" class="w-4 h-4"></i>
-                        </button>
+                        <div class="flex items-center gap-1 ml-1 border-l border-albion-border pl-2">
+                            <button onclick="duplicateRecipeBlock('${block.id}')" title="Duplicate Node" class="p-1.5 text-slate-400 hover:text-albion-gold hover:bg-albion-gold/10 rounded-lg">
+                                <i data-lucide="copy" class="w-4 h-4"></i>
+                            </button>
+                            <button onclick="removeRecipeBlock('${block.id}')" title="Delete Node" class="p-1.5 text-slate-400 hover:text-red-400 hover:bg-red-500/10 rounded-lg">
+                                <i data-lucide="trash-2" class="w-4 h-4"></i>
+                            </button>
+                        </div>
                     </div>
                 </div>
 
