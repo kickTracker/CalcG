@@ -329,7 +329,7 @@
         let activeTabId = null;
         let renamingTabId = null;
         let searchQuery = '';
-        const STORAGE_KEY = 'albion_chain_multitab_data_v8';
+        const STORAGE_KEY = 'albion_chain_multitab_data_v9';
         const THEME_STORAGE_KEY = 'albion_chain_theme';
 
         let dragSession = null; 
@@ -415,9 +415,9 @@
                             id: defaultBlockId1,
                             parentId: null,
                             title: "1. Raw Materials",
-                            nodeQty: 100,
+                            nodeQty: 1,
                             fields: [
-                                { id: 'f_1_1', type: 'standard', name: 'T6 Logs', apq: 1, price: 350, isIncome: false }
+                                { id: 'f_1_1', type: 'standard', name: 'T6 Logs', apq: 100, price: 350, isIncome: false }
                             ]
                         },
                         {
@@ -625,6 +625,7 @@
         }
 
         function addNewRecipeBlock(defaultTitle = "New Node") {
+            persistCurrentState();
             const blocks = getActiveBlocks();
             const newBlock = {
                 id: 'block_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
@@ -632,7 +633,7 @@
                 title: defaultTitle,
                 nodeQty: 1,
                 fields: [
-                    { id: 'f_' + Date.now() + '_1', type: 'rrr', name: 'Crafted Gear', qty: 50, rrr: 36.7, price: 800, unitCraftedValue: 1800 },
+                    { id: 'f_' + Date.now() + '_1', type: 'rrr', name: 'Crafted Gear', qty: 1, rrr: 36.7, price: 800, unitCraftedValue: 1800 },
                     { id: 'f_' + Date.now() + '_2', type: 'station_fee', name: 'Station Tax', feePer100Nutrition: 600, nutritionPerCraft: 16 },
                     { id: 'f_' + Date.now() + '_3', type: 'tax', name: 'Market Tax', rate: DEFAULT_TAX_RATE, applyToIncome: true }
                 ]
@@ -667,6 +668,7 @@
         }
 
         function removeRecipeBlock(blockId) {
+            persistCurrentState();
             const blocks = getActiveBlocks();
             blocks.forEach(b => {
                 if (b.parentId === blockId) b.parentId = null;
@@ -678,6 +680,7 @@
         }
 
         function disconnectBlock(blockId) {
+            persistCurrentState();
             const blocks = getActiveBlocks();
             const block = blocks.find(b => b.id === blockId);
             if (block) {
@@ -699,6 +702,7 @@
         }
 
         function addFieldToBlock(blockId, type) {
+            persistCurrentState();
             const blocks = getActiveBlocks();
             const block = blocks.find(b => b.id === blockId);
             if (!block) return;
@@ -708,7 +712,7 @@
             if (type === 'standard') {
                 newField = { ...newField, name: 'Raw Material', apq: 1, price: 200, isIncome: false };
             } else if (type === 'rrr') {
-                newField = { ...newField, name: 'Crafted Gear', qty: 50, rrr: 36.7, price: 800, unitCraftedValue: 1800 };
+                newField = { ...newField, name: 'Crafted Gear', qty: 1, rrr: 36.7, price: 800, unitCraftedValue: 1800 };
             } else if (type === 'station_fee') {
                 newField = { ...newField, name: 'Station Fee', feePer100Nutrition: 600, nutritionPerCraft: 16 };
             } else if (type === 'tax') {
@@ -721,6 +725,7 @@
         }
 
         function removeField(blockId, fieldId) {
+            persistCurrentState();
             const blocks = getActiveBlocks();
             const block = blocks.find(b => b.id === blockId);
             if (!block) return;
@@ -738,7 +743,8 @@
             if (key === '__nodeQty__') {
                 block.nodeQty = Math.max(1, Math.floor(evaluateExpression(el.value)) || 1);
                 saveToLocalStorage();
-                renderAllBlocks();
+                updateAllCardDisplays();
+                calculateOverallTotals();
                 return;
             }
 
@@ -757,6 +763,8 @@
             }
 
             saveToLocalStorage();
+            updateAllCardDisplays();
+            calculateOverallTotals();
 
             if (key === 'isIncome') {
                 renderAllBlocks();
@@ -785,6 +793,8 @@
                 el.value = field[key];
             }
             saveToLocalStorage();
+            updateAllCardDisplays();
+            calculateOverallTotals();
         }
 
         function calculateRRR(baseQty, rrrPercent) {
@@ -822,12 +832,15 @@
             let parentTotalOutput = 0;
             parentBlock.fields.forEach(f => {
                 if (f.type === 'rrr') {
-                    const r = calculateRRR(f.qty || 0, f.rrr || 0);
+                    let pBaseQty = f.qty || 1;
+                    const pParentOutput = getEffectiveParentOutput(parentBlock);
+                    let pStartingQty = pParentOutput !== null ? pParentOutput : pBaseQty;
+                    const r = calculateRRR(pStartingQty, f.rrr || 0);
                     parentTotalOutput += r.totalQty;
                 }
             });
 
-            return parentTotalOutput > 0 ? parentTotalOutput * (parentBlock.nodeQty || 1) : null;
+            return parentTotalOutput > 0 ? parentTotalOutput : null;
         }
 
         function calculateBlockTotals(block) {
@@ -848,7 +861,8 @@
                         totalCost += subtotal;
                     }
                 } else if (field.type === 'rrr') {
-                    let startingQty = parentOutput !== null ? parentOutput : (field.qty || 1);
+                    let baseQty = field.qty || 1;
+                    let startingQty = parentOutput !== null ? parentOutput : (baseQty * nodeMultiplier);
                     const rrrResult = calculateRRR(startingQty, field.rrr || 0);
                     const rawMaterialCost = startingQty * (field.price || 0);
                     const grossValueGained = rrrResult.totalQty * (field.unitCraftedValue || 0);
@@ -859,7 +873,8 @@
                     let totalCraftsCount = 1;
                     const rrrField = block.fields.find(f => f.type === 'rrr');
                     if (rrrField) {
-                        let startingQty = parentOutput !== null ? parentOutput : (rrrField.qty || 1);
+                        let baseQty = rrrField.qty || 1;
+                        let startingQty = parentOutput !== null ? parentOutput : (baseQty * nodeMultiplier);
                         totalCraftsCount = calculateRRR(startingQty, rrrField.rrr || 0).totalQty;
                     } else {
                         totalCraftsCount = nodeMultiplier;
@@ -952,7 +967,8 @@
                             subEl.className = `min-w-[80px] text-right font-medium text-xs ${isInc ? 'text-emerald-400' : 'text-slate-300'} row-subtotal ml-auto`;
                         }
                     } else if (field.type === 'rrr') {
-                        let startingQty = parentOutput !== null ? parentOutput : (field.qty || 1);
+                        let baseQty = field.qty || 1;
+                        let startingQty = parentOutput !== null ? parentOutput : (baseQty * nodeMultiplier);
                         const rrrData = calculateRRR(startingQty, field.rrr || 0);
                         const grossValueGained = rrrData.totalQty * (field.unitCraftedValue || 0);
                         const rawCost = startingQty * (field.price || 0);
@@ -967,7 +983,8 @@
                         let totalCraftsCount = 1;
                         const rrrField = block.fields.find(f => f.type === 'rrr');
                         if (rrrField) {
-                            let startingQty = parentOutput !== null ? parentOutput : (rrrField.qty || 1);
+                            let baseQty = rrrField.qty || 1;
+                            let startingQty = parentOutput !== null ? parentOutput : (baseQty * nodeMultiplier);
                             totalCraftsCount = calculateRRR(startingQty, rrrField.rrr || 0).totalQty;
                         } else {
                             totalCraftsCount = nodeMultiplier;
@@ -1372,7 +1389,8 @@
             const parentOutput = getEffectiveParentOutput(block);
 
             if (field.type === 'rrr') {
-                let startingQty = parentOutput !== null ? parentOutput : (field.qty || 1);
+                let baseQty = field.qty || 1;
+                let startingQty = parentOutput !== null ? parentOutput : (baseQty * nodeMultiplier);
                 const rrrData = calculateRRR(startingQty, field.rrr || 0);
                 const grossValueGained = rrrData.totalQty * (field.unitCraftedValue || 0);
                 const rawCost = startingQty * (field.price || 0);
@@ -1448,7 +1466,8 @@
                 let totalCraftsCount = 1;
                 const rrrField = block.fields.find(f => f.type === 'rrr');
                 if (rrrField) {
-                    let startingQty = parentOutput !== null ? parentOutput : (rrrField.qty || 1);
+                    let baseQty = rrrField.qty || 1;
+                    let startingQty = parentOutput !== null ? parentOutput : (baseQty * nodeMultiplier);
                     totalCraftsCount = calculateRRR(startingQty, rrrField.rrr || 0).totalQty;
                 } else {
                     totalCraftsCount = nodeMultiplier;
