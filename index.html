@@ -67,7 +67,6 @@
             transition: box-shadow 0.22s ease, border-color 0.2s ease;
         }
         
-        /* Compact floating dragged ghost element */
         .floating-ghost {
             position: fixed;
             pointer-events: none;
@@ -330,7 +329,7 @@
         let activeTabId = null;
         let renamingTabId = null;
         let searchQuery = '';
-        const STORAGE_KEY = 'albion_chain_multitab_data_v7';
+        const STORAGE_KEY = 'albion_chain_multitab_data_v8';
         const THEME_STORAGE_KEY = 'albion_chain_theme';
 
         let dragSession = null; 
@@ -416,17 +415,19 @@
                             id: defaultBlockId1,
                             parentId: null,
                             title: "1. Raw Materials",
+                            nodeQty: 100,
                             fields: [
-                                { id: 'f_1_1', type: 'standard', name: 'T6 Logs', qty: 100, price: 350, isIncome: false }
+                                { id: 'f_1_1', type: 'standard', name: 'T6 Logs', apq: 1, price: 350, isIncome: false }
                             ]
                         },
                         {
                             id: defaultBlockId2,
                             parentId: defaultBlockId1,
                             title: "2. Refining Station",
+                            nodeQty: 1,
                             fields: [
                                 { id: 'f_2_1', type: 'rrr', name: 'T6 Planks', qty: 100, rrr: 36.7, price: 340, unitCraftedValue: 780 },
-                                { id: 'f_2_2', type: 'station_fee', name: 'Refining Tax', feePer100Nutrition: 650, totalCrafts: 100, nutritionPerCraft: 8 },
+                                { id: 'f_2_2', type: 'station_fee', name: 'Refining Tax', feePer100Nutrition: 650, nutritionPerCraft: 8 },
                                 { id: 'f_2_3', type: 'tax', name: 'Market Sales Tax', rate: DEFAULT_TAX_RATE, applyToIncome: true }
                             ]
                         }
@@ -468,6 +469,10 @@
 
                 if (key === '__title__') {
                     block.title = el.value;
+                    return;
+                }
+                if (key === '__nodeQty__') {
+                    block.nodeQty = Math.max(1, Math.floor(evaluateExpression(el.value)) || 1);
                     return;
                 }
 
@@ -625,9 +630,10 @@
                 id: 'block_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4),
                 parentId: null,
                 title: defaultTitle,
+                nodeQty: 1,
                 fields: [
-                    { id: 'f_' + Date.now() + '_1', type: 'rrr', name: 'Crafted Gear', qty: 50, rrr: 36.7, price: 500, unitCraftedValue: 1200 },
-                    { id: 'f_' + Date.now() + '_2', type: 'station_fee', name: 'Station Tax', feePer100Nutrition: 750, totalCrafts: 50, nutritionPerCraft: 16 },
+                    { id: 'f_' + Date.now() + '_1', type: 'rrr', name: 'Crafted Gear', qty: 50, rrr: 36.7, price: 800, unitCraftedValue: 1800 },
+                    { id: 'f_' + Date.now() + '_2', type: 'station_fee', name: 'Station Tax', feePer100Nutrition: 600, nutritionPerCraft: 16 },
                     { id: 'f_' + Date.now() + '_3', type: 'tax', name: 'Market Tax', rate: DEFAULT_TAX_RATE, applyToIncome: true }
                 ]
             };
@@ -677,6 +683,7 @@
             if (block) {
                 block.parentId = null;
                 saveToLocalStorage();
+                renderAllBlocks();
             }
         }
 
@@ -699,11 +706,11 @@
             let newField = { id: 'f_' + Date.now() + '_' + Math.random().toString(36).substr(2, 4), type };
 
             if (type === 'standard') {
-                newField = { ...newField, name: 'Raw Material', qty: 100, price: 200, isIncome: false };
+                newField = { ...newField, name: 'Raw Material', apq: 1, price: 200, isIncome: false };
             } else if (type === 'rrr') {
                 newField = { ...newField, name: 'Crafted Gear', qty: 50, rrr: 36.7, price: 800, unitCraftedValue: 1800 };
             } else if (type === 'station_fee') {
-                newField = { ...newField, name: 'Station Fee', feePer100Nutrition: 600, totalCrafts: 50, nutritionPerCraft: 16 };
+                newField = { ...newField, name: 'Station Fee', feePer100Nutrition: 600, nutritionPerCraft: 16 };
             } else if (type === 'tax') {
                 newField = { ...newField, name: 'Market Tax', rate: DEFAULT_TAX_RATE, applyToIncome: true };
             }
@@ -727,6 +734,14 @@
             const blocks = getActiveBlocks();
             const block = blocks.find(b => b.id === blockId);
             if (!block) return;
+
+            if (key === '__nodeQty__') {
+                block.nodeQty = Math.max(1, Math.floor(evaluateExpression(el.value)) || 1);
+                saveToLocalStorage();
+                renderAllBlocks();
+                return;
+            }
+
             const field = block.fields.find(f => f.id === fieldId);
             if (!field) return;
 
@@ -752,6 +767,15 @@
             const blocks = getActiveBlocks();
             const block = blocks.find(b => b.id === blockId);
             if (!block) return;
+
+            if (key === '__nodeQty__') {
+                block.nodeQty = Math.max(1, Math.floor(evaluateExpression(el.value)) || 1);
+                el.value = block.nodeQty;
+                saveToLocalStorage();
+                renderAllBlocks();
+                return;
+            }
+
             const field = block.fields.find(f => f.id === fieldId);
             if (!field) return;
 
@@ -789,28 +813,58 @@
             return { totalQty, bonusQty, steps };
         }
 
+        function getEffectiveParentOutput(block) {
+            const blocks = getActiveBlocks();
+            if (!block.parentId) return null;
+            const parentBlock = blocks.find(b => b.id === block.parentId);
+            if (!parentBlock) return null;
+
+            let parentTotalOutput = 0;
+            parentBlock.fields.forEach(f => {
+                if (f.type === 'rrr') {
+                    const r = calculateRRR(f.qty || 0, f.rrr || 0);
+                    parentTotalOutput += r.totalQty;
+                }
+            });
+
+            return parentTotalOutput > 0 ? parentTotalOutput * (parentBlock.nodeQty || 1) : null;
+        }
+
         function calculateBlockTotals(block) {
             let totalCost = 0;
             let totalGrossIncome = 0;
             let totalTaxes = 0;
+            const nodeMultiplier = block.nodeQty || 1;
+            const parentOutput = getEffectiveParentOutput(block);
 
             block.fields.forEach(field => {
                 if (field.type === 'standard') {
-                    const subtotal = (field.qty || 0) * (field.price || 0);
+                    const apq = field.apq || 0;
+                    const effectiveQty = apq * nodeMultiplier;
+                    const subtotal = effectiveQty * (field.price || 0);
                     if (field.isIncome === true || field.isIncome === 'true') {
                         totalGrossIncome += subtotal;
                     } else {
                         totalCost += subtotal;
                     }
                 } else if (field.type === 'rrr') {
-                    const rrrResult = calculateRRR(field.qty || 0, field.rrr || 0);
-                    const rawMaterialCost = (field.qty || 0) * (field.price || 0);
+                    let startingQty = parentOutput !== null ? parentOutput : (field.qty || 1);
+                    const rrrResult = calculateRRR(startingQty, field.rrr || 0);
+                    const rawMaterialCost = startingQty * (field.price || 0);
                     const grossValueGained = rrrResult.totalQty * (field.unitCraftedValue || 0);
 
                     totalCost += rawMaterialCost;
                     totalGrossIncome += grossValueGained;
                 } else if (field.type === 'station_fee') {
-                    const totalNutrition = (field.nutritionPerCraft || 0) * (field.totalCrafts || 0);
+                    let totalCraftsCount = 1;
+                    const rrrField = block.fields.find(f => f.type === 'rrr');
+                    if (rrrField) {
+                        let startingQty = parentOutput !== null ? parentOutput : (rrrField.qty || 1);
+                        totalCraftsCount = calculateRRR(startingQty, rrrField.rrr || 0).totalQty;
+                    } else {
+                        totalCraftsCount = nodeMultiplier;
+                    }
+                    const totalNutrition = (field.nutritionPerCraft || 0) * totalCraftsCount;
                     const calculatedFee = (field.feePer100Nutrition || 0) * (totalNutrition / 100);
                     totalCost += calculatedFee;
                 }
@@ -861,6 +915,8 @@
             const blocks = getActiveBlocks();
             blocks.forEach(block => {
                 const totals = calculateBlockTotals(block);
+                const nodeMultiplier = block.nodeQty || 1;
+                const parentOutput = getEffectiveParentOutput(block);
                 
                 const cardEl = document.getElementById(`card-${block.id}`);
                 if (!cardEl) return;
@@ -886,7 +942,9 @@
                     if (!rowEl) return;
 
                     if (field.type === 'standard') {
-                        const subtotal = (field.qty || 0) * (field.price || 0);
+                        const apq = field.apq || 0;
+                        const effectiveQty = apq * nodeMultiplier;
+                        const subtotal = effectiveQty * (field.price || 0);
                         const subEl = rowEl.querySelector('.row-subtotal');
                         const isInc = (field.isIncome === true || field.isIncome === 'true');
                         if (subEl) {
@@ -894,9 +952,10 @@
                             subEl.className = `min-w-[80px] text-right font-medium text-xs ${isInc ? 'text-emerald-400' : 'text-slate-300'} row-subtotal ml-auto`;
                         }
                     } else if (field.type === 'rrr') {
-                        const rrrData = calculateRRR(field.qty || 0, field.rrr || 0);
+                        let startingQty = parentOutput !== null ? parentOutput : (field.qty || 1);
+                        const rrrData = calculateRRR(startingQty, field.rrr || 0);
                         const grossValueGained = rrrData.totalQty * (field.unitCraftedValue || 0);
-                        const rawCost = (field.qty || 0) * (field.price || 0);
+                        const rawCost = startingQty * (field.price || 0);
                         const netGainedPerCraft = rrrData.totalQty > 0 ? (grossValueGained - rawCost) / rrrData.totalQty : 0;
 
                         const outQtyEl = rowEl.querySelector('.row-rrr-totalqty');
@@ -905,8 +964,20 @@
                         const subEl = rowEl.querySelector('.row-subtotal');
                         if (subEl) subEl.innerHTML = `<div class="text-emerald-400">+${formatNumber(grossValueGained)} Silver</div><div class="text-[9px] text-slate-400">Gained/Unit: ${formatNumber(netGainedPerCraft)}</div>`;
                     } else if (field.type === 'station_fee') {
-                        const totalNutrition = (field.nutritionPerCraft || 0) * (field.totalCrafts || 0);
+                        let totalCraftsCount = 1;
+                        const rrrField = block.fields.find(f => f.type === 'rrr');
+                        if (rrrField) {
+                            let startingQty = parentOutput !== null ? parentOutput : (rrrField.qty || 1);
+                            totalCraftsCount = calculateRRR(startingQty, rrrField.rrr || 0).totalQty;
+                        } else {
+                            totalCraftsCount = nodeMultiplier;
+                        }
+                        const totalNutrition = (field.nutritionPerCraft || 0) * totalCraftsCount;
                         const calculatedFee = (field.feePer100Nutrition || 0) * (totalNutrition / 100);
+
+                        const craftsLabelEl = rowEl.querySelector('.row-station-crafts');
+                        if (craftsLabelEl) craftsLabelEl.innerText = formatInt(totalCraftsCount);
+
                         const subEl = rowEl.querySelector('.row-subtotal');
                         if (subEl) subEl.innerText = `-${formatNumber(calculatedFee)} Silver`;
                     } else if (field.type === 'tax') {
@@ -1157,7 +1228,7 @@
                 const matchesTitle = block.title.toLowerCase().includes(searchQuery);
                 const matchesField = block.fields.some(f => {
                     const nameMatch = (f.name || '').toLowerCase().includes(searchQuery);
-                    const qtyMatch = String(f.qty || '').toLowerCase().includes(searchQuery);
+                    const qtyMatch = String(f.qty || f.apq || '').toLowerCase().includes(searchQuery);
                     const priceMatch = String(f.price || f.unitCraftedValue || f.feePer100Nutrition || f.rate || '').toLowerCase().includes(searchQuery);
                     return nameMatch || qtyMatch || priceMatch;
                 });
@@ -1193,6 +1264,7 @@
             const totals = calculateBlockTotals(block);
             const blocks = getActiveBlocks();
             const parentBlock = block.parentId ? blocks.find(b => b.id === block.parentId) : null;
+            const nodeQty = block.nodeQty || 1;
 
             return `
             <div id="card-${block.id}" 
@@ -1209,8 +1281,17 @@
                             <input type="text" value="${escapeHtml(block.title)}"
                                 data-block="${block.id}" data-key="__title__" data-kind="text"
                                 oninput="updateBlockTitle('${block.id}', this.value)"
-                                class="bg-transparent border border-transparent hover:border-albion-border focus:border-albion-gold rounded px-1.5 py-0.5 font-bold text-sm sm:text-base w-full max-w-xs focus:outline-none transition" 
+                                class="bg-transparent border border-transparent hover:border-albion-border focus:border-albion-gold rounded px-1.5 py-0.5 font-bold text-sm sm:text-base w-full max-w-[200px] focus:outline-none transition" 
                                 placeholder="Node Name...">
+
+                            <div class="flex items-center gap-1.5 bg-slate-800/80 px-2 py-0.5 rounded border border-albion-border">
+                                <span class="text-[10px] text-slate-400 uppercase font-semibold">Node Qty:</span>
+                                <input type="text" value="${nodeQty}"
+                                    data-block="${block.id}" data-key="__nodeQty__" data-kind="int"
+                                    oninput="handleInputChange(this, '${block.id}', null, '__nodeQty__', 'int')"
+                                    onblur="handleInputBlur(this, '${block.id}', null, '__nodeQty__', 'int')"
+                                    class="bg-slate-900 text-albion-gold font-bold border border-albion-gold/40 rounded px-1 py-0.5 text-xs w-14 focus:outline-none focus:border-albion-gold text-center">
+                            </div>
 
                             ${parentBlock ? `
                                 <span class="inline-flex items-center gap-1 text-[10px] sm:text-[11px] bg-blue-500/10 text-blue-400 border border-blue-500/30 px-2 py-0.5 rounded-full w-fit">
@@ -1248,7 +1329,7 @@
 
                 <!-- Fields List -->
                 <div class="p-3 sm:p-4 space-y-2.5 sm:space-y-3">
-                    ${block.fields.map(field => renderFieldRowHTML(block.id, field)).join('')}
+                    ${block.fields.map(field => renderFieldRowHTML(block, field)).join('')}
 
                     <!-- Action Bar for adding fields -->
                     <div id="actions-bar-${block.id}" class="pt-2.5 border-t border-albion-border/60 flex flex-col sm:flex-row gap-2 items-stretch sm:items-center justify-between">
@@ -1284,14 +1365,20 @@
             </div>`;
         }
 
-        function renderFieldRowHTML(blockId, field) {
+        function renderFieldRowHTML(block, field) {
+            const blockId = block.id;
             const inputClass = "bg-slate-900/60 dark:bg-slate-900/60 bg-white border border-albion-border rounded px-2 py-1 text-xs focus:outline-none";
+            const nodeMultiplier = block.nodeQty || 1;
+            const parentOutput = getEffectiveParentOutput(block);
 
             if (field.type === 'rrr') {
-                const rrrData = calculateRRR(field.qty || 0, field.rrr || 0);
+                let startingQty = parentOutput !== null ? parentOutput : (field.qty || 1);
+                const rrrData = calculateRRR(startingQty, field.rrr || 0);
                 const grossValueGained = rrrData.totalQty * (field.unitCraftedValue || 0);
-                const rawCost = (field.qty || 0) * (field.price || 0);
+                const rawCost = startingQty * (field.price || 0);
                 const netGainedPerCraft = rrrData.totalQty > 0 ? (grossValueGained - rawCost) / rrrData.totalQty : 0;
+
+                const isLinked = parentOutput !== null;
 
                 return `
                 <div id="field-row-${blockId}-${field.id}" class="field-row bg-slate-900/30 dark:bg-slate-900/30 bg-slate-50 p-2.5 rounded-lg border border-blue-500/30 flex flex-wrap items-center gap-2">
@@ -1306,12 +1393,12 @@
                         class="${inputClass} flex-1 min-w-[110px] focus:border-blue-400" placeholder="Item Name">
 
                     <div class="flex items-center gap-1">
-                        <span class="text-[9px] text-slate-400 uppercase">Qty</span>
-                        <input type="text" value="${field.qty}"
+                        <span class="text-[9px] text-slate-400 uppercase">${isLinked ? 'From Parent' : 'Qty'}</span>
+                        <input type="text" value="${isLinked ? startingQty : (field.qty || 1)}" ${isLinked ? 'disabled' : ''}
                             data-block="${blockId}" data-field="${field.id}" data-key="qty" data-kind="int"
                             oninput="handleInputChange(this, '${blockId}', '${field.id}', 'qty', 'int')"
                             onblur="handleInputBlur(this, '${blockId}', '${field.id}', 'qty', 'int')"
-                            class="${inputClass} w-14 sm:w-16 focus:border-blue-400">
+                            class="${inputClass} w-16 sm:w-20 focus:border-blue-400 ${isLinked ? 'opacity-60 cursor-not-allowed bg-slate-800' : ''}">
                     </div>
 
                     <div class="flex items-center gap-1">
@@ -1341,7 +1428,7 @@
                             class="bg-slate-900/60 dark:bg-slate-900/60 bg-white border border-albion-gold/40 rounded px-2 py-1 text-xs text-albion-gold font-semibold w-16 sm:w-20 focus:outline-none focus:border-albion-gold">
                     </div>
 
-                    <button onclick="openRRRModal(${field.qty || 0}, ${field.rrr || 0})" class="bg-blue-950/60 border border-blue-500/40 px-2 py-1 rounded text-[11px] flex items-center gap-1 text-blue-300">
+                    <button onclick="openRRRModal(${startingQty}, ${field.rrr || 0})" class="bg-blue-950/60 border border-blue-500/40 px-2 py-1 rounded text-[11px] flex items-center gap-1 text-blue-300">
                         <span>Out: <strong class="row-rrr-totalqty">${formatInt(rrrData.totalQty)}</strong></span>
                     </button>
 
@@ -1358,7 +1445,16 @@
             }
 
             if (field.type === 'station_fee') {
-                const totalNutrition = (field.nutritionPerCraft || 0) * (field.totalCrafts || 0);
+                let totalCraftsCount = 1;
+                const rrrField = block.fields.find(f => f.type === 'rrr');
+                if (rrrField) {
+                    let startingQty = parentOutput !== null ? parentOutput : (rrrField.qty || 1);
+                    totalCraftsCount = calculateRRR(startingQty, rrrField.rrr || 0).totalQty;
+                } else {
+                    totalCraftsCount = nodeMultiplier;
+                }
+
+                const totalNutrition = (field.nutritionPerCraft || 0) * totalCraftsCount;
                 const calculatedFee = (field.feePer100Nutrition || 0) * (totalNutrition / 100);
 
                 return `
@@ -1382,13 +1478,9 @@
                             class="${inputClass} text-albion-gold font-semibold w-16 focus:border-albion-gold">
                     </div>
 
-                    <div class="flex items-center gap-1">
-                        <span class="text-[9px] text-slate-400 uppercase">Crafts</span>
-                        <input type="text" value="${field.totalCrafts}"
-                            data-block="${blockId}" data-field="${field.id}" data-key="totalCrafts" data-kind="int"
-                            oninput="handleInputChange(this, '${blockId}', '${field.id}', 'totalCrafts', 'int')"
-                            onblur="handleInputBlur(this, '${blockId}', '${field.id}', 'totalCrafts', 'int')"
-                            class="${inputClass} w-14 focus:border-albion-gold">
+                    <div class="flex items-center gap-1 bg-slate-800/50 px-2 py-1 rounded border border-albion-border">
+                        <span class="text-[9px] text-slate-400 uppercase">Crafts:</span>
+                        <span class="text-xs font-bold text-albion-gold row-station-crafts">${formatInt(totalCraftsCount)}</span>
                     </div>
 
                     <div class="flex items-center gap-1">
@@ -1412,8 +1504,11 @@
             }
 
             if (field.type === 'standard') {
-                const subtotal = (field.qty || 0) * (field.price || 0);
+                const apq = field.apq || 1;
+                const effectiveQty = apq * nodeMultiplier;
+                const subtotal = effectiveQty * (field.price || 0);
                 const isInc = (field.isIncome === true || field.isIncome === 'true');
+
                 return `
                 <div id="field-row-${blockId}-${field.id}" class="field-row bg-slate-900/30 dark:bg-slate-900/30 bg-slate-50 p-2.5 rounded-lg border border-albion-border/50 flex flex-wrap items-center gap-2">
                     ${fieldGrip(blockId, field.id, 'Drag row')}
@@ -1435,12 +1530,16 @@
                     </select>
 
                     <div class="flex items-center gap-1">
-                        <span class="text-[9px] text-slate-400 uppercase">Qty</span>
-                        <input type="text" value="${field.qty}"
-                            data-block="${blockId}" data-field="${field.id}" data-key="qty" data-kind="float"
-                            oninput="handleInputChange(this, '${blockId}', '${field.id}', 'qty', 'float')"
-                            onblur="handleInputBlur(this, '${blockId}', '${field.id}', 'qty', 'float')"
-                            class="${inputClass} w-16">
+                        <span class="text-[9px] text-slate-400 uppercase">APQ</span>
+                        <input type="text" value="${apq}"
+                            data-block="${blockId}" data-field="${field.id}" data-key="apq" data-kind="float"
+                            oninput="handleInputChange(this, '${blockId}', '${field.id}', 'apq', 'float')"
+                            onblur="handleInputBlur(this, '${blockId}', '${field.id}', 'apq', 'float')"
+                            class="${inputClass} w-16 text-albion-gold font-semibold">
+                    </div>
+
+                    <div class="text-[11px] text-slate-400 px-1">
+                        (= <span class="text-slate-200 font-medium">${formatNumber(effectiveQty)}</span> total)
                     </div>
 
                     <div class="flex items-center gap-1">
@@ -1464,8 +1563,7 @@
             }
 
             if (field.type === 'tax') {
-                const blocks = getActiveBlocks();
-                const totals = calculateBlockTotals(blocks.find(b => b.id === blockId));
+                const totals = calculateBlockTotals(block);
                 const rate = (field.rate || 0) / 100;
                 const taxAmount = field.applyToIncome ? (totals.totalGrossIncome * rate) : (totals.totalCost * rate);
 
